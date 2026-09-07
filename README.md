@@ -220,7 +220,7 @@ Escolhas:
   confundir os dois é o erro mais comum.
 - **Resend** para o e-mail de acesso — chamada direta na API REST deles
   (sem SDK). `EMAIL_REMETENTE` é **específico deste produto**
-  (`calculadora@gmtacademy.com.br`): como vão existir outros produtos sob a
+  (`acesso@calculadora.gmtacademy.com.br`): como vão existir outros produtos sob a
   mesma empresa, cada um manda do seu próprio remetente, nunca de um
   endereço genérico compartilhado — e o domínio do remetente precisa estar
   verificado (SPF/DKIM) no Resend.
