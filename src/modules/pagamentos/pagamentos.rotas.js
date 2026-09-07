@@ -3,6 +3,7 @@
 // venda (ninguém está logado ainda), e /webhook é chamado pelo próprio
 // Mercado Pago (autenticado pela assinatura HMAC, não por JWT).
 import { Router } from 'express';
+import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { env, pagamentoConfigurado } from '../../config/env.js';
 import { criarAssinatura, buscarAssinatura, verificarAssinaturaWebhook } from '../../lib/mercadoPago.js';
@@ -15,10 +16,12 @@ import { erroRequisicao } from '../../lib/erros.js';
 export const rotasPagamentos = Router();
 
 /// Gera uma senha inicial forte — quem assina recebe ela por e-mail e pode
-/// seguir usando (ainda não há tela de "trocar senha").
+/// seguir usando (ainda não há tela de "trocar senha"). `crypto.randomInt`,
+/// não `Math.random()`: é a senha real de uma conta paga, precisa vir de um
+/// gerador criptograficamente seguro.
 function gerarSenha() {
   const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 16 }, () => alfabeto[Math.floor(Math.random() * alfabeto.length)]).join('');
+  return Array.from({ length: 16 }, () => alfabeto[randomInt(alfabeto.length)]).join('');
 }
 
 /// Cria a assinatura no Mercado Pago e redireciona para o checkout
