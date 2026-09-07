@@ -75,7 +75,7 @@ preço de venda do óculos/combo
 (–) custo financeiro do parcelamento (taxa da maquininha, por nº de parcelas)
 (–) exame de vista (se tiver custo direto)
 (–) comissão/premiação do vendedor
-(–) custo de garantia/proteção por unidade (GMT)
+(–) custo de garantia/proteção por unidade
 (–) embalagem/estojo entregue ao cliente
 = margem de contribuição (R$) ÷ preço de venda = margem de contribuição (%)
 ```
