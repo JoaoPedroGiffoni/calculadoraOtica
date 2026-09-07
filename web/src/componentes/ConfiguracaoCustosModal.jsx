@@ -53,7 +53,7 @@ export default function ConfiguracaoCustosModal({ config, aoFechar, aoSalvar }) 
           <CampoNumero rotulo="CMV lente simples (R$)" valor={local.cmvLenteSimples} aoMudar={(v) => campo('cmvLenteSimples', v)} />
           <CampoNumero rotulo="CMV lente multifocal (% do ticket)" valor={local.cmvLentePercentual} aoMudar={(v) => campo('cmvLentePercentual', v)} />
           <CampoNumero rotulo="Exame de vista (R$)" valor={local.custoExameVista} aoMudar={(v) => campo('custoExameVista', v)} />
-          <CampoNumero rotulo="Garantia / GMT (R$)" valor={local.custoGarantia} aoMudar={(v) => campo('custoGarantia', v)} />
+          <CampoNumero rotulo="Garantia / proteção (R$)" valor={local.custoGarantia} aoMudar={(v) => campo('custoGarantia', v)} />
           <CampoNumero rotulo="Embalagem (R$)" valor={local.custoEmbalagem} aoMudar={(v) => campo('custoEmbalagem', v)} />
           <CampoNumero rotulo="Comissão do vendedor (%)" valor={local.comissaoPercentual} aoMudar={(v) => campo('comissaoPercentual', v)} />
           <CampoNumero rotulo="Impostos (%)" valor={local.impostosPercentual} aoMudar={(v) => campo('impostosPercentual', v)} />

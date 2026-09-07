@@ -21,29 +21,32 @@ const CUSTOS_VAZIOS = {
   cmvArmacao: '0', cmvLente: '0', custoTratamentos: '0', custoExameVista: '0', custoGarantia: '0', custoEmbalagem: '0',
 };
 
-const CAMPOS_CUSTO_RS = [
-  { chave: 'cmvArmacao', rotulo: '2. CMV da armação' },
-  { chave: 'cmvLente', rotulo: '3. CMV da lente' },
-  { chave: 'custoTratamentos', rotulo: '4. Tratamentos / upgrades vendidos' },
-  { chave: 'custoExameVista', rotulo: '6. Exame de vista' },
-  { chave: 'custoGarantia', rotulo: '9. Garantia / proteção (GMT)' },
-  { chave: 'custoEmbalagem', rotulo: '10. Embalagem / estojo' },
-];
-
-/// Campos em R$ que o cadastro consegue deduzir sozinho.
-const CAMPOS_RS_COM_PADRAO = new Set(['cmvLente', 'custoExameVista', 'custoGarantia', 'custoEmbalagem']);
-
 // Valores em %: sempre uma fração do preço de venda, do jeito que aparecem
 // no extrato/contrato de verdade (taxa da maquininha, comissão, imposto) —
 // digitar em R$ direto exigiria fazer a conta de cabeça toda vez que o
 // preço de venda mudasse.
 const PERCENTUAIS_VAZIOS = { custoFinanceiro: '0', comissao: '0', impostos: '0' };
 
-const CAMPOS_PERCENTUAL = [
-  { chave: 'custoFinanceiro', rotulo: '5. Custo financeiro do parcelamento (%)' },
-  { chave: 'comissao', rotulo: '7. Comissão / premiação do vendedor (%)' },
-  { chave: 'impostos', rotulo: '8. Impostos (%)' },
+// Um array só, na ordem exata da fórmula (2 a 10) — renderizado numa grade
+// de 2 colunas, então a ordem de leitura (linha a linha, esquerda pra
+// direita) precisa bater com a numeração, senão vira "9, 10, 5, 7, 8" na
+// tela e ninguém segue o raciocínio.
+const CAMPOS = [
+  { chave: 'cmvArmacao', rotulo: '2. CMV da armação', tipo: 'rs' },
+  { chave: 'cmvLente', rotulo: '3. CMV da lente', tipo: 'rs' },
+  { chave: 'custoTratamentos', rotulo: '4. Tratamentos / upgrades vendidos', tipo: 'rs' },
+  { chave: 'custoFinanceiro', rotulo: '5. Custo financeiro do parcelamento (%)', tipo: 'percentual' },
+  { chave: 'custoExameVista', rotulo: '6. Exame de vista', tipo: 'rs' },
+  { chave: 'comissao', rotulo: '7. Comissão / premiação do vendedor (%)', tipo: 'percentual' },
+  { chave: 'impostos', rotulo: '8. Impostos (%)', tipo: 'percentual' },
+  { chave: 'custoGarantia', rotulo: '9. Garantia / proteção', tipo: 'rs' },
+  { chave: 'custoEmbalagem', rotulo: '10. Embalagem / estojo', tipo: 'rs' },
 ];
+
+/// Campos em R$ que o cadastro consegue deduzir sozinho (os em % sempre vêm
+/// do cadastro — ver useEffect logo abaixo — por isso não precisam entrar
+/// aqui).
+const CAMPOS_RS_COM_PADRAO = new Set(['cmvLente', 'custoExameVista', 'custoGarantia', 'custoEmbalagem']);
 
 function numero(valor) {
   const n = Number(String(valor).replace(',', '.'));
@@ -224,43 +227,43 @@ export default function Calculadora() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {CAMPOS_CUSTO_RS.map(({ chave, rotulo }) => (
-              <div key={chave}>
-                <label className="rotulo text-xs">{rotulo}</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="campo"
-                  value={custos[chave]}
-                  onChange={(e) => editarCusto(chave, e.target.value)}
-                />
-                {CAMPOS_RS_COM_PADRAO.has(chave) && !custosTocados.has(chave) && (
-                  <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">pré-preenchido pelo cadastro</p>
-                )}
-              </div>
-            ))}
-
-            {CAMPOS_PERCENTUAL.map(({ chave, rotulo }) => (
-              <div key={chave}>
-                <label className="rotulo text-xs">{rotulo}</label>
-                <div className="relative">
+            {CAMPOS.map(({ chave, rotulo, tipo }) =>
+              tipo === 'rs' ? (
+                <div key={chave}>
+                  <label className="rotulo text-xs">{rotulo}</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    className="campo pr-8"
-                    value={percentuais[chave]}
-                    onChange={(e) => editarPercentual(chave, e.target.value)}
+                    className="campo"
+                    value={custos[chave]}
+                    onChange={(e) => editarCusto(chave, e.target.value)}
                   />
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400 dark:text-slate-500">%</span>
+                  {CAMPOS_RS_COM_PADRAO.has(chave) && !custosTocados.has(chave) && (
+                    <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">pré-preenchido pelo cadastro</p>
+                  )}
                 </div>
-                <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-                  {!percentuaisTocados.has(chave) && 'pré-preenchido pelo cadastro · '}
-                  = {formatarMoeda(reaisPorPercentual[chave])}
-                </p>
-              </div>
-            ))}
+              ) : (
+                <div key={chave}>
+                  <label className="rotulo text-xs">{rotulo}</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="campo pr-8"
+                      value={percentuais[chave]}
+                      onChange={(e) => editarPercentual(chave, e.target.value)}
+                    />
+                    <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400 dark:text-slate-500">%</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                    {!percentuaisTocados.has(chave) && 'pré-preenchido pelo cadastro · '}
+                    = {formatarMoeda(reaisPorPercentual[chave])}
+                  </p>
+                </div>
+              ),
+            )}
           </div>
 
           {margem ? (
