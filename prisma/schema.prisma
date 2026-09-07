@@ -1,0 +1,105 @@
+// ============================================================================
+// CALCULADORA ÓTICA
+// ----------------------------------------------------------------------------
+// FASE 2 — ainda não conectado no runtime (AUTH_MODO=mock por padrão, ver
+// src/lib/dadosMock.js). Este schema existe para o dia em que banco e
+// pagamento entrarem: mesma receita do AtendimentoLocaPronto (MySQL da
+// própria Hostinger, engineType "client" + driverAdapters, sem motor Rust —
+// ver o schema.prisma daquele projeto para o porquê completo).
+//
+// Multi-tenant: cada ótica que compra o acesso é uma Empresa; todo o resto
+// (Usuario, Orcamento) pendura nela. Isolamento é por empresaId em toda
+// consulta — nunca listar Orcamento sem filtrar pela empresa de quem pediu.
+// ============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+  engineType      = "client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum PapelUsuario {
+  ADMIN
+  VENDEDOR
+}
+
+/// Ciclo de vida do acesso vendido. `trial` nasce da primeira compra ou de um
+/// convite manual; os demais valores acompanham o webhook do meio de
+/// pagamento escolhido (ver README, seção "Próximas fases").
+enum StatusEmpresa {
+  trial
+  ativo
+  inadimplente
+  cancelado
+}
+
+/// Uma ótica cliente do sistema — o "tenant". Nasce quando alguém compra o
+/// acesso (Fase 2: webhook do pagamento cria o registro e o primeiro
+/// usuário, e manda o e-mail de acesso).
+model Empresa {
+  id        String        @id @default(uuid())
+  nome      String
+  status    StatusEmpresa @default(trial)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  usuarios   Usuario[]
+  orcamentos Orcamento[]
+
+  @@map("empresas")
+}
+
+model Usuario {
+  id              String       @id @default(uuid())
+  empresaId       String
+  nome            String
+  email           String       @unique
+  senhaHash       String
+  senhaAlteradaEm DateTime?
+  papel           PapelUsuario @default(VENDEDOR)
+  ativo           Boolean      @default(true)
+  ultimoLogin     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  empresa    Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  orcamentos Orcamento[]
+
+  @@index([empresaId])
+  @@map("usuarios")
+}
+
+/// Um orçamento de óculos calculado e salvo. Os itens (armação, lente,
+/// tratamentos) ficam em JSON — a lista de tratamentos é de tamanho
+/// variável e não muda com frequência suficiente para justificar tabelas
+/// próprias; o que importa consultar depois (cliente, total, data) já vem
+/// como coluna.
+model Orcamento {
+  id             String   @id @default(uuid())
+  empresaId      String
+  criadoPorId    String
+  cliente        String
+  armacao        Json
+  lente          Json
+  tratamentos    Json
+  desconto       Json
+  observacoes    String?  @db.Text
+  subtotal       Decimal  @db.Decimal(10, 2)
+  totalTratamentos Decimal @db.Decimal(10, 2)
+  valorDesconto  Decimal  @db.Decimal(10, 2)
+  total          Decimal  @db.Decimal(10, 2)
+  parcelas       Int      @default(1)
+  valorParcela   Decimal  @db.Decimal(10, 2)
+  criadoEm       DateTime @default(now())
+
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  criadoPor Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId, criadoEm])
+  @@map("orcamentos")
+}
