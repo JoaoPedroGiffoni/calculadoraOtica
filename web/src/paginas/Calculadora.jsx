@@ -1,25 +1,48 @@
 // Tela única: formulário de orçamento à esquerda, resultado + histórico à
 // direita. Fase 1 não tem tela separada para isso — a ótica calcula, salva e
 // já vê o histórico sem trocar de página.
+//
+// Quem é ADMIN ganha uma seção a mais (fechada por padrão): custo da venda e
+// margem de contribuição — informação que o vendedor não vê, nem aqui nem no
+// histórico (o servidor já tira `custos`/`margem` da resposta para quem não
+// é ADMIN — ver src/modules/orcamentos/orcamentos.rotas.js#paraPapel; aqui é
+// só reforço de UI, não a barreira de verdade).
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../lib/autenticacao.jsx';
 import { useTema } from '../lib/tema.jsx';
 import { api, ErroApi } from '../lib/api.js';
 import { formatarMoeda, formatarDataHora } from '../lib/formato.js';
-import { Erro, Carregando, Marca, Girando } from '../componentes/Ui.jsx';
-import { IconeSol, IconeLua, IconeSair, IconeMais, IconeLixeira, IconeHistorico, IconeCheck } from '../componentes/Icones.jsx';
+import {
+  calcularOrcamento, calcularMargem, resolverCmvLente, resolverCustoFinanceiro, resolverComissao,
+  configuracaoCustosPadrao,
+} from '../lib/calculo.js';
+import { Erro, Carregando, Marca, Girando, SeloMargem } from '../componentes/Ui.jsx';
+import ConfiguracaoCustosModal from '../componentes/ConfiguracaoCustosModal.jsx';
+import {
+  IconeSol, IconeLua, IconeSair, IconeMais, IconeLixeira, IconeHistorico, IconeCheck,
+  IconeEngrenagem, IconeGrafico,
+} from '../componentes/Icones.jsx';
 
 const ITEM_VAZIO = { nome: '', valor: '' };
 const LENTE_VAZIA = { tipo: '', nome: '', valor: '' };
+const CUSTOS_VAZIOS = {
+  cmvArmacao: '0', cmvLente: '0', custoTratamentos: '0', custoFinanceiro: '0',
+  custoExameVista: '0', comissaoVendedor: '0', custoGarantia: '0', custoEmbalagem: '0',
+};
 
 function numero(valor) {
   const n = Number(String(valor).replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
 }
 
+function custosParaNumeros(custos) {
+  return Object.fromEntries(Object.entries(custos).map(([k, v]) => [k, numero(v)]));
+}
+
 export default function Calculadora() {
   const { usuario, sair } = useAuth();
   const { tema, alternar } = useTema();
+  const ehAdmin = usuario.papel === 'ADMIN';
 
   const [catalogo, setCatalogo] = useState({ tiposLente: [], tratamentos: [] });
   const [historico, setHistorico] = useState([]);
@@ -33,6 +56,13 @@ export default function Calculadora() {
   const [descontoValor, setDescontoValor] = useState('0');
   const [parcelas, setParcelas] = useState(1);
   const [observacoes, setObservacoes] = useState('');
+
+  // --- Custos e margem (só ADMIN) ---
+  const [configCustos, setConfigCustos] = useState(configuracaoCustosPadrao());
+  const [mostrarConfig, setMostrarConfig] = useState(false);
+  const [mostrarCustos, setMostrarCustos] = useState(false);
+  const [custos, setCustos] = useState(CUSTOS_VAZIOS);
+  const [custosTocados, setCustosTocados] = useState(new Set());
 
   const [resultado, setResultado] = useState(null);
   const [erro, setErro] = useState(null);
@@ -53,6 +83,45 @@ export default function Calculadora() {
     api.get('/catalogo').then(setCatalogo).catch(() => {});
     carregarHistorico();
   }, [carregarHistorico]);
+
+  useEffect(() => {
+    if (!ehAdmin) return;
+    api.get('/configuracoes/custos').then(setConfigCustos).catch(() => {});
+  }, [ehAdmin]);
+
+  // Pré-preenche os custos que dá para deduzir (CMV da lente, financeiro do
+  // parcelamento, comissão, e os fixos do cadastro), sem sobrescrever o que o
+  // ADMIN já mexeu à mão nesta venda (ver custosTocados).
+  const previa = calcularOrcamento({
+    armacao: { valor: numero(armacao.valor) },
+    lente: { valor: numero(lente.valor) },
+    tratamentos: tratamentos.map((t) => ({ valor: numero(t.valor) })),
+    desconto: { tipo: descontoTipo, valor: numero(descontoValor) },
+    parcelas: numero(parcelas) || 1,
+  });
+
+  useEffect(() => {
+    if (!ehAdmin || !mostrarCustos) return;
+    setCustos((c) => ({
+      ...c,
+      cmvLente: custosTocados.has('cmvLente') ? c.cmvLente : String(resolverCmvLente(lente.tipo, previa.total, configCustos)),
+      custoFinanceiro: custosTocados.has('custoFinanceiro')
+        ? c.custoFinanceiro
+        : String(resolverCustoFinanceiro(numero(parcelas) || 1, previa.total, configCustos)),
+      comissaoVendedor: custosTocados.has('comissaoVendedor') ? c.comissaoVendedor : String(resolverComissao(previa.total, configCustos)),
+      custoExameVista: custosTocados.has('custoExameVista') ? c.custoExameVista : String(configCustos.custoExameVista ?? 0),
+      custoGarantia: custosTocados.has('custoGarantia') ? c.custoGarantia : String(configCustos.custoGarantia ?? 0),
+      custoEmbalagem: custosTocados.has('custoEmbalagem') ? c.custoEmbalagem : String(configCustos.custoEmbalagem ?? 0),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ehAdmin, mostrarCustos, configCustos, lente.tipo, previa.total, parcelas]);
+
+  const previaMargem = mostrarCustos ? calcularMargem({ vendaTotal: previa.total, custos: custosParaNumeros(custos) }) : null;
+
+  function editarCusto(chave, valor) {
+    setCustos((c) => ({ ...c, [chave]: valor }));
+    setCustosTocados((t) => new Set(t).add(chave));
+  }
 
   function adicionarTratamento() {
     setTratamentos((lista) => [...lista, { ...ITEM_VAZIO }]);
@@ -75,6 +144,9 @@ export default function Calculadora() {
     setDescontoValor('0');
     setParcelas(1);
     setObservacoes('');
+    setCustos(CUSTOS_VAZIOS);
+    setCustosTocados(new Set());
+    setMostrarCustos(false);
   }
 
   async function aoSubmeter(evento) {
@@ -92,6 +164,7 @@ export default function Calculadora() {
       desconto: { tipo: descontoTipo, valor: numero(descontoValor) },
       parcelas: numero(parcelas) || 1,
       observacoes: observacoes || undefined,
+      ...(ehAdmin && mostrarCustos ? { custos: custosParaNumeros(custos) } : {}),
     };
 
     try {
@@ -106,6 +179,11 @@ export default function Calculadora() {
     }
   }
 
+  async function salvarConfigCustos(novoConfig) {
+    const salvo = await api.put('/configuracoes/custos', novoConfig);
+    setConfigCustos(salvo);
+  }
+
   return (
     <div className="min-h-dvh bg-slate-100 pb-16 dark:bg-slate-950">
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
@@ -116,6 +194,17 @@ export default function Calculadora() {
               <p className="text-sm font-medium leading-tight">{usuario.nome}</p>
               <p className="text-xs leading-tight text-slate-500 dark:text-slate-400">{usuario.empresa?.nome}</p>
             </div>
+            {ehAdmin && (
+              <button
+                type="button"
+                onClick={() => setMostrarConfig(true)}
+                className="botao-icone"
+                aria-label="Custos padrão"
+                title="Custos padrão"
+              >
+                <IconeEngrenagem />
+              </button>
+            )}
             <button
               type="button"
               onClick={alternar}
@@ -292,6 +381,41 @@ export default function Calculadora() {
             />
           </div>
 
+          {ehAdmin && (
+            <fieldset className="space-y-3 rounded-xl border border-dashed border-marca/40 p-3">
+              <legend className="flex items-center gap-1.5 px-1 text-sm font-semibold text-marca">
+                <IconeGrafico tamanho={15} /> Custo e margem — só você vê
+              </legend>
+
+              {!mostrarCustos ? (
+                <button type="button" onClick={() => setMostrarCustos(true)} className="botao-secundario w-full text-xs">
+                  <IconeMais tamanho={14} /> Lançar custos desta venda
+                </button>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <CampoCusto rotulo="CMV armação" valor={custos.cmvArmacao} aoMudar={(v) => editarCusto('cmvArmacao', v)} />
+                    <CampoCusto rotulo="CMV lente" valor={custos.cmvLente} aoMudar={(v) => editarCusto('cmvLente', v)} />
+                    <CampoCusto rotulo="Custo tratamentos" valor={custos.custoTratamentos} aoMudar={(v) => editarCusto('custoTratamentos', v)} />
+                    <CampoCusto rotulo="Custo financeiro" valor={custos.custoFinanceiro} aoMudar={(v) => editarCusto('custoFinanceiro', v)} />
+                    <CampoCusto rotulo="Exame de vista" valor={custos.custoExameVista} aoMudar={(v) => editarCusto('custoExameVista', v)} />
+                    <CampoCusto rotulo="Comissão vendedor" valor={custos.comissaoVendedor} aoMudar={(v) => editarCusto('comissaoVendedor', v)} />
+                    <CampoCusto rotulo="Garantia / GMT" valor={custos.custoGarantia} aoMudar={(v) => editarCusto('custoGarantia', v)} />
+                    <CampoCusto rotulo="Embalagem" valor={custos.custoEmbalagem} aoMudar={(v) => editarCusto('custoEmbalagem', v)} />
+                  </div>
+
+                  {previaMargem && (
+                    <SeloMargem margemRs={previaMargem.margemRs} margemPercentual={previaMargem.margemPercentual} />
+                  )}
+
+                  <button type="button" onClick={() => { setMostrarCustos(false); setCustos(CUSTOS_VAZIOS); setCustosTocados(new Set()); }} className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600 dark:hover:text-slate-300">
+                    Remover custos desta venda
+                  </button>
+                </>
+              )}
+            </fieldset>
+          )}
+
           <Erro mensagem={erro?.message} detalhes={erro?.detalhes} />
 
           <button type="submit" className="botao-primario w-full" disabled={enviando}>
@@ -317,6 +441,9 @@ export default function Calculadora() {
                   <Linha rotulo={`${resultado.parcelas}x de`} valor={formatarMoeda(resultado.valorParcela)} />
                 )}
               </dl>
+              {resultado.margem && (
+                <SeloMargem margemRs={resultado.margem.margemRs} margemPercentual={resultado.margem.margemPercentual} />
+              )}
             </div>
           )}
 
@@ -339,7 +466,12 @@ export default function Calculadora() {
                         {formatarDataHora(o.criadoEm)} · {o.criadoPorNome}
                       </p>
                     </div>
-                    <span className="shrink-0 font-semibold">{formatarMoeda(o.total)}</span>
+                    <div className="shrink-0 space-y-1 text-right">
+                      <p className="font-semibold">{formatarMoeda(o.total)}</p>
+                      {o.margem && (
+                        <SeloMargem margemRs={o.margem.margemRs} margemPercentual={o.margem.margemPercentual} compacto />
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -347,6 +479,10 @@ export default function Calculadora() {
           </div>
         </div>
       </main>
+
+      {mostrarConfig && (
+        <ConfiguracaoCustosModal config={configCustos} aoFechar={() => setMostrarConfig(false)} aoSalvar={salvarConfigCustos} />
+      )}
     </div>
   );
 }
@@ -356,6 +492,22 @@ function Linha({ rotulo, valor, destaque = false }) {
     <div className="flex items-center justify-between">
       <dt className={destaque ? 'font-semibold' : 'text-slate-500 dark:text-slate-400'}>{rotulo}</dt>
       <dd className={destaque ? 'text-lg font-bold text-marca' : 'font-medium'}>{valor}</dd>
+    </div>
+  );
+}
+
+function CampoCusto({ rotulo, valor, aoMudar }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">{rotulo}</label>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        className="campo py-1.5 text-sm"
+        value={valor}
+        onChange={(e) => aoMudar(e.target.value)}
+      />
     </div>
   );
 }

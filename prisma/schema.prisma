@@ -45,6 +45,11 @@ model Empresa {
   id        String        @id @default(uuid())
   nome      String
   status    StatusEmpresa @default(trial)
+  /// Custos padrão para a seção de margem de contribuição (CMV de lente,
+  /// taxa da maquininha por parcela, comissão etc.) — JSON porque o formato
+  /// já é livre no repositório mock (ver src/lib/repositorioConfiguracoes.js)
+  /// e não há consulta que precise indexar campo por campo aqui dentro.
+  configuracaoCustos Json?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
@@ -95,6 +100,13 @@ model Orcamento {
   total          Decimal  @db.Decimal(10, 2)
   parcelas       Int      @default(1)
   valorParcela   Decimal  @db.Decimal(10, 2)
+  /// Custo e margem de contribuição — só preenchidos quando quem lançou o
+  /// orçamento é ADMIN (ver orcamentos.rotas.js#paraPapel: um VENDEDOR nunca
+  /// vê estes dois campos na resposta da API, mesmo consultando o próprio
+  /// orçamento). Nulos quando não há custo lançado.
+  custos         Json?
+  margemRs       Decimal? @db.Decimal(10, 2)
+  margemPercentual Decimal? @db.Decimal(5, 2)
   criadoEm       DateTime @default(now())
 
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
