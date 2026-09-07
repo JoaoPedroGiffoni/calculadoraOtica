@@ -23,6 +23,15 @@ export function resolverComissao(precoVenda, config) {
   return Math.round(precoVenda * ((Number(config.comissaoPercentual) || 0) / 100) * 100) / 100;
 }
 
+// Taxa de referência de maquininha (crédito à vista/parcelado) — mesma
+// origem e mesmo aviso do backend, ver TAXA_MAQUININHA_REFERENCIA em
+// src/lib/repositorioConfiguracoes.js. Só existe aqui como placeholder pro
+// primeiro instante, antes do GET /configuracoes/custos voltar; quem manda
+// de verdade é sempre a resposta da API.
+const TAXA_MAQUININHA_REFERENCIA = [
+  3.69, 4.99, 5.99, 6.89, 7.69, 8.09, 9.09, 9.19, 9.49, 9.49, 10.47, 10.49,
+];
+
 /// Mesma forma do que GET /configuracoes/custos devolve — usado como valor
 /// inicial enquanto a chamada real não volta, para o modal nunca renderizar
 /// contra `undefined`.
@@ -30,7 +39,7 @@ export function configuracaoCustosPadrao() {
   return {
     cmvLenteSimples: 0,
     cmvLentePercentual: 0,
-    taxaMaquininhaPorParcela: Array.from({ length: 12 }, (_, i) => ({ parcelas: i + 1, percentual: 0 })),
+    taxaMaquininhaPorParcela: TAXA_MAQUININHA_REFERENCIA.map((percentual, i) => ({ parcelas: i + 1, percentual })),
     custoExameVista: 0,
     custoGarantia: 0,
     custoEmbalagem: 0,
