@@ -1,0 +1,102 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply dark:bg-slate-950 dark:text-slate-100;
+    transition: background-color .2s ease, color .2s ease;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.marca.DEFAULT');
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background-color: theme('colors.marca.DEFAULT / 25%');
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.slate.300') transparent;
+  }
+  .dark * {
+    scrollbar-color: theme('colors.slate.700') transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: theme('colors.slate.300');
+    border-radius: 9999px;
+    border: 2.5px solid transparent;
+    background-clip: content-box;
+  }
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: theme('colors.slate.700');
+  }
+}
+
+@layer components {
+  .campo {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base
+           text-slate-900 outline-none transition
+           placeholder:text-slate-400
+           focus:border-marca focus:ring-4 focus:ring-marca/15
+           disabled:cursor-not-allowed disabled:opacity-60
+           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500;
+  }
+  .campo:focus-visible {
+    outline: none;
+  }
+
+  .rotulo {
+    @apply mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300;
+  }
+
+  .botao {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
+           transition active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100;
+  }
+
+  .botao-primario {
+    @apply botao bg-marca text-white shadow-suave hover:bg-marca-escuro hover:shadow-cartao;
+  }
+
+  .botao-secundario {
+    @apply botao border border-slate-300 bg-white text-slate-700 shadow-suave hover:border-slate-400 hover:bg-slate-50
+           dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800;
+  }
+
+  .botao-perigo {
+    @apply botao border border-red-200 bg-white text-red-700 shadow-suave hover:border-red-300 hover:bg-red-50
+           dark:border-red-900/60 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950/40;
+  }
+
+  .botao-icone {
+    @apply inline-flex items-center justify-center rounded-xl p-2 text-slate-500 transition
+           hover:bg-slate-100 hover:text-slate-700 active:scale-[.94]
+           dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100;
+  }
+
+  .cartao {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-cartao
+           dark:border-slate-800 dark:bg-slate-900;
+  }
+}

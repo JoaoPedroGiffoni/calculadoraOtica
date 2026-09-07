@@ -1,0 +1,33 @@
+# Dependências
+node_modules/
+web/node_modules/
+
+# Ambiente — nunca versionar segredos
+.env
+.env.*
+!.env.example
+
+# Build
+web/dist/
+dist/
+
+# Logs — a pasta é versionada vazia porque o PM2 escreve nela
+logs/*
+!logs/.gitkeep
+*.log
+npm-debug.log*
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Cache
+.cache/
+.npm/
