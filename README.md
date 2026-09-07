@@ -197,8 +197,10 @@ para um deploy não devolver acesso a uma senha antiga sem querer.
 
 ### Fase 3 — venda e pagamento
 
-`/` é a página de venda (pública); `/login` é o produto em si — ver
-[`web/src/paginas/Venda.jsx`](web/src/paginas/Venda.jsx) e
+`/` é a página de venda (pública); `/como-funciona` é uma demo pública da
+conta, sem login, linkada de lá; `/login` é o produto em si — ver
+[`web/src/paginas/Venda.jsx`](web/src/paginas/Venda.jsx),
+[`web/src/paginas/Demo.jsx`](web/src/paginas/Demo.jsx) e
 [`web/src/App.jsx`](web/src/App.jsx).
 
 Fluxo: alguém clica em "Assinar" na página de venda → `GET
@@ -309,6 +311,7 @@ web/src/
   lib/autenticacao.jsx          contexto de auth
   lib/calculo.js                toda a conta da margem — a lógica de negócio mora aqui, não no servidor
   paginas/Venda.jsx              página de venda, pública ("/")
+  paginas/Demo.jsx               demo pública da calculadora, sem login ("/como-funciona")
   paginas/Login.jsx
   paginas/Calculadora.jsx       a ferramenta inteira: preço de venda + custos → margem, sem salvar nada
   componentes/ConfiguracaoCustosModal.jsx  edita os custos padrão
