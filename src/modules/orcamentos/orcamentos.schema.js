@@ -24,6 +24,22 @@ export const criarOrcamentoSchema = z.object({
     .default({ tipo: 'percentual', valor: 0 }),
   parcelas: z.coerce.number().int().min(1).max(12).default(1),
   observacoes: z.string().trim().max(500).optional(),
+  // Só tem efeito quando quem envia é ADMIN — a rota descarta este campo
+  // para qualquer outro papel (ver orcamentos.rotas.js). Todos os valores já
+  // resolvidos em R$: o front decide fixo x percentual e taxa por parcela
+  // antes de mandar (ver web/src/lib/calculo.js).
+  custos: z
+    .object({
+      cmvArmacao: z.coerce.number().min(0).default(0),
+      cmvLente: z.coerce.number().min(0).default(0),
+      custoTratamentos: z.coerce.number().min(0).default(0),
+      custoFinanceiro: z.coerce.number().min(0).default(0),
+      custoExameVista: z.coerce.number().min(0).default(0),
+      comissaoVendedor: z.coerce.number().min(0).default(0),
+      custoGarantia: z.coerce.number().min(0).default(0),
+      custoEmbalagem: z.coerce.number().min(0).default(0),
+    })
+    .optional(),
 });
 
 export const idParamSchema = z.object({ id: z.string().min(1) });

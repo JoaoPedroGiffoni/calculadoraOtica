@@ -38,6 +38,18 @@ export const usuariosMock = [
     papel: 'ADMIN',
     ativo: true,
   },
+  // VENDEDOR de teste — para conferir que custo/margem (ver
+  // src/modules/orcamentos/orcamentos.rotas.js#paraPapel) ficam mesmo fora
+  // do alcance de quem não é ADMIN.
+  {
+    id: 'usuario-3',
+    empresaId: 'empresa-1',
+    nome: 'Bruna Costa',
+    email: 'bruna@visaoclara.com.br',
+    senhaHash: senhaHashPadrao,
+    papel: 'VENDEDOR',
+    ativo: true,
+  },
 ];
 
 /// Só para a mensagem de ajuda na tela de login — nunca a senha real fora de

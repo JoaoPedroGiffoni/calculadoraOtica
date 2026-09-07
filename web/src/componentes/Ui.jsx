@@ -1,6 +1,7 @@
 // Componentes de interface reutilizáveis: estados de carregamento, erro e
 // aviso — mesma cara em todo fluxo da aplicação.
 import { IconeAlerta, IconeOculos } from './Icones.jsx';
+import { classificarMargem } from '../lib/calculo.js';
 
 export function Girando({ tamanho = 20, className = '' }) {
   return (
@@ -54,6 +55,40 @@ export function Aviso({ mensagem, compacto = false }) {
     >
       <IconeAlerta tamanho={compacto ? 14 : 18} className={compacto ? 'shrink-0' : 'mt-0.5 shrink-0'} />
       <p className="flex-1 font-medium">{mensagem}</p>
+    </div>
+  );
+}
+
+/// Selo de leitura da margem de contribuição — a régua de saúde financeira
+/// da venda (ver classificarMargem em lib/calculo.js). `compacto` é para
+/// caber numa linha de histórico; a versão normal vai no resultado e no
+/// formulário, com a régua completa por baixo.
+export function SeloMargem({ margemRs, margemPercentual, compacto = false }) {
+  const faixa = classificarMargem(margemPercentual);
+
+  if (compacto) {
+    return (
+      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${faixa.classe}`}>
+        {faixa.emoji} {margemPercentual}%
+      </span>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between rounded-lg bg-marca/10 px-3 py-2 text-sm">
+        <span className="font-medium text-slate-600 dark:text-slate-300">Margem de contribuição</span>
+        <span className="font-bold text-marca">
+          {(Number(margemRs) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ({margemPercentual}%)
+        </span>
+      </div>
+      <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${faixa.classe}`}>
+        <span>{faixa.emoji}</span>
+        <span>{faixa.rotulo}</span>
+      </div>
+      <p className="text-xs text-slate-400 dark:text-slate-500">
+        🎯 Meta ideal para ótica física: 60% a 70%. Margem de contribuição não é lucro — dela ainda saem os custos fixos da operação.
+      </p>
     </div>
   );
 }

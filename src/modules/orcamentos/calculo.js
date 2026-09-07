@@ -20,3 +20,26 @@ export function calcularOrcamento({ armacao, lente, tratamentos = [], desconto, 
 
   return { subtotal, totalTratamentos, valorDesconto, total, parcelas, valorParcela };
 }
+
+/**
+ * Margem de contribuição de uma venda já fechada — visão gerencial, restrita
+ * a ADMIN (ver orcamentos.rotas.js). `custos` já vem com os valores
+ * resolvidos pelo front (CMV da lente já decidido entre fixo/percentual,
+ * custo financeiro já calculado pela taxa da parcela escolhida etc. — ver
+ * web/src/lib/calculo.js, que espelha esta mesma conta para a pré-visualização
+ * ao vivo); aqui só soma e divide.
+ *
+ * Não entra: aluguel, folha fixa, pró-labore, contador, sistemas, energia,
+ * marketing — isso é custo fixo/CAC, fora do escopo de uma venda individual.
+ */
+export function calcularMargem({ vendaTotal, custos }) {
+  const custosTotal =
+    Math.round(
+      Object.values(custos).reduce((soma, valor) => soma + (Number(valor) || 0), 0) * 100,
+    ) / 100;
+
+  const margemRs = Math.round((vendaTotal - custosTotal) * 100) / 100;
+  const margemPercentual = vendaTotal > 0 ? Math.round((margemRs / vendaTotal) * 10000) / 100 : 0;
+
+  return { custosTotal, margemRs, margemPercentual };
+}
