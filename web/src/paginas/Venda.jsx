@@ -32,6 +32,10 @@ const RECURSOS = [
   },
 ];
 
+/// Link de checkout: um <a href> puro, de propósito (GET redireciona pro
+/// Mercado Pago) — não tem cadastro nem JavaScript nenhum antes disso.
+const LINK_ASSINATURA = '/api/v1/pagamentos/assinar';
+
 export default function Venda() {
   const { usuario } = useAuth();
   const { tema, alternar } = useTema();
@@ -51,8 +55,13 @@ export default function Venda() {
             >
               {tema === 'escuro' ? <IconeSol /> : <IconeLua />}
             </button>
-            <Link to="/login" className="botao-primario text-sm">
-              {usuario ? 'Ir para a calculadora' : 'Entrar'}
+            {!usuario && (
+              <Link to="/login" className="botao-secundario text-sm">
+                Entrar
+              </Link>
+            )}
+            <Link to={usuario ? '/login' : LINK_ASSINATURA} className="botao-primario text-sm">
+              {usuario ? 'Ir para a calculadora' : 'Assinar por R$ 49/mês'}
             </Link>
           </div>
         </div>
@@ -77,12 +86,12 @@ export default function Venda() {
               vê na hora se aquela venda vale a pena — sem planilha, sem chute.
             </p>
             <div className="mt-8 flex justify-center">
-              <Link to="/login" className="botao-primario px-6 py-3 text-base">
-                {usuario ? 'Ir para a calculadora' : 'Entrar'}
+              <Link to={usuario ? '/login' : LINK_ASSINATURA} className="botao-primario px-6 py-3 text-base">
+                {usuario ? 'Ir para a calculadora' : 'Assinar por R$ 49/mês'}
               </Link>
             </div>
             <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">
-              Já é cliente? Entre com o e-mail e senha que você recebeu.
+              Já é cliente? <Link to="/login" className="underline hover:text-slate-600 dark:hover:text-slate-300">Entre</Link> com o e-mail e senha que você recebeu.
             </p>
           </div>
         </section>
@@ -129,9 +138,12 @@ export default function Venda() {
         {/* --- CTA final --- */}
         <section className="border-t border-slate-200 bg-white px-4 py-16 text-center dark:border-slate-800 dark:bg-slate-900 sm:px-6">
           <h2 className="text-2xl font-bold tracking-tight">Pronto pra saber a margem da próxima venda?</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
+            R$ 49/mês, cancele quando quiser. O acesso chega por e-mail assim que o pagamento é confirmado.
+          </p>
           <div className="mt-6">
-            <Link to="/login" className="botao-primario px-6 py-3 text-base">
-              {usuario ? 'Ir para a calculadora' : 'Entrar'}
+            <Link to={usuario ? '/login' : LINK_ASSINATURA} className="botao-primario px-6 py-3 text-base">
+              {usuario ? 'Ir para a calculadora' : 'Assinar por R$ 49/mês'}
             </Link>
           </div>
         </section>

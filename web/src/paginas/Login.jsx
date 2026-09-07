@@ -1,5 +1,6 @@
 // Tela de login. E-mail, senha e um botão — nada além do necessário.
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/autenticacao.jsx';
 import { Erro, Aviso, Girando, Marca } from '../componentes/Ui.jsx';
 import { IconeOlho, IconeOlhoFechado, IconeSol, IconeLua } from '../componentes/Icones.jsx';
@@ -34,6 +35,8 @@ function explicar(erro) {
 export default function Login() {
   const { entrar, motivoSaida } = useAuth();
   const { tema, alternar } = useTema();
+  const [parametros] = useSearchParams();
+  const assinaturaPendente = parametros.get('assinatura') === 'pendente';
 
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -78,7 +81,13 @@ export default function Login() {
           <Marca />
         </div>
 
-        {MOTIVOS[motivoSaida] && !erro && (
+        {assinaturaPendente && (
+          <div className="mb-4">
+            <Aviso mensagem="Assinatura recebida! Assim que o pagamento for confirmado, enviamos o acesso (e-mail e senha) para o e-mail usado na compra." />
+          </div>
+        )}
+
+        {MOTIVOS[motivoSaida] && !erro && !assinaturaPendente && (
           <div className="mb-4">
             <Aviso mensagem={MOTIVOS[motivoSaida]} />
           </div>
