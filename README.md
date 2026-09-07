@@ -30,14 +30,17 @@ processo, nem Docker.
 
 ---
 
-## Fase atual: mock, sem banco e sem pagamento
+## Dois modos de autenticação
 
 `AUTH_MODO=mock` (padrão): login e custos padrão vivem em **memória do
-processo** — zera a cada restart. Existe para validar o produto (calculadora
-+ login por conta) antes de conectar banco de dados de verdade e o fluxo de
-venda de acesso.
+processo** — zera a cada restart, sem precisar de banco nenhum. Bom para
+testar rápido, numa máquina qualquer.
 
-Logins de teste (ver [`src/lib/dadosMock.js`](src/lib/dadosMock.js) para
+`AUTH_MODO=banco`: Prisma + MySQL de verdade (ver "Banco de dados", abaixo).
+É o modo de produção — cada conta vendida persiste, sobrevive a restart e
+deploy.
+
+Logins de teste do modo mock (ver [`src/lib/dadosMock.js`](src/lib/dadosMock.js) para
 editar):
 
 | E-mail | Senha | Ótica |
@@ -59,6 +62,10 @@ acesso vendido, ponto — ver comentário no topo de `dadosMock.js`.
 | `GET /api/v1/auth/eu` | Quem sou eu, com dados da conta |
 | `GET /api/v1/configuracoes/custos` | Custos padrão da conta (pré-preenche a calculadora) |
 | `PUT /api/v1/configuracoes/custos` | Atualiza os custos padrão |
+
+Em `AUTH_MODO=banco`, toda rota acima (exceto `/saude`) responde **503**
+enquanto o banco ainda está sendo preparado no boot — ver "Ordem do boot",
+mais abaixo.
 
 O cálculo da margem em si **não passa pela API** — é só JavaScript no
 navegador (ver [`web/src/lib/calculo.js`](web/src/lib/calculo.js)), porque
@@ -125,29 +132,66 @@ cd web && npm test     # frontend: mesma ideia, testa a conta da margem
 
 ---
 
-## Próximas fases
+## Banco de dados (`AUTH_MODO=banco`)
 
-### Fase 2 — banco de dados
+Mesma receita do AtendimentoLocaPronto — MySQL da própria Hostinger,
+`engineType = "client"` + driver adapter (sem motor Rust: CloudLinux mata
+processo que cria thread nativa), migrations aplicadas **em processo** (não
+pelo CLI do Prisma, que estoura o teto de processos da hospedagem
+compartilhada), porta aberta antes do banco estar pronto. Banco **próprio**,
+separado dos outros sistemas que rodam no mesmo servidor.
 
-Trocar `AUTH_MODO=mock` por `AUTH_MODO=banco` e preencher `DATABASE_URL`.
-O [`prisma/schema.prisma`](prisma/schema.prisma) já está escrito, no mesmo
-formato do AtendimentoLocaPronto — `Empresa` (o acesso vendido) e `Usuario`
-(o login, um por Empresa) — pronto para `prisma migrate dev` assim que a
-decisão for tomada. Falta implementar o lado `banco` de
-[`src/lib/repositorioUsuarios.js`](src/lib/repositorioUsuarios.js) e de
-[`src/lib/repositorioConfiguracoes.js`](src/lib/repositorioConfiguracoes.js)
-— a interface das funções já é a mesma, então nada muda em quem as chama
-(rotas, middleware).
+### Configurar
 
-Ao ligar o banco, mover `@prisma/client`, `prisma` e `@prisma/adapter-mariadb`
-de `devDependencies` para `dependencies` no `package.json` (mesmo motivo do
-AtendimentoLocaPronto: hospedagem gerenciada instala com
-`NODE_ENV=production`, que pula dependências de desenvolvimento) e seguir a
-mesma receita de lá — `engineType = "client"` + driver adapter, sem motor
-Rust (CloudLinux mata processo que cria thread nativa), migrations aplicadas
-em processo (não pelo CLI do Prisma, que estoura o teto de processos), porta
-aberta antes do banco pronto. Banco **próprio**, separado dos outros dois
-sistemas.
+```bash
+cp .env.example .env
+```
+
+Preencha, no `.env`:
+
+```env
+AUTH_MODO=banco
+DATABASE_URL="mysql://usuario:senha@auth-dbNNNN.hstgr.io:3306/banco"
+EMPRESA_NOME="Nome da primeira ótica"
+ADMIN_NOME="Seu nome"
+ADMIN_EMAIL="seu@email.com"
+ADMIN_SENHA="senha forte"
+```
+
+`auth-dbNNNN.hstgr.io` não é `localhost` — é o host do MySQL da própria
+Hostinger, e aparece na barra de endereço quando você abre o phpMyAdmin pelo
+hPanel. Senha com caractere especial precisa de percent-encoding (`#` →
+`%23`, `/` → `%2F`, `@` → `%40` — ver comentário completo no
+`.env.example`).
+
+### Subir
+
+```bash
+npm run dev
+```
+
+No primeiro boot com o banco vazio, a própria aplicação aplica a migration
+inicial (tabelas `empresas` e `usuarios`) e cria a primeira conta a partir de
+`EMPRESA_NOME`/`ADMIN_*` — não precisa rodar `npm run setup` na mão (embora o
+comando exista, para quem tiver shell). Confira em
+`GET /api/v1/saude`: o campo `banco` vai de `"preparando"` para `"ok"`.
+Contas seguintes (outros acessos vendidos) entram direto no banco — ainda não
+há tela de cadastro no produto (ver Fase 3).
+
+### Ordem do boot
+
+O servidor HTTP **abre a porta antes de preparar o banco** — a Hostinger
+derruba o processo que não chama `listen()` em poucos segundos, e conectar +
+migrar leva bem mais que isso num primeiro deploy. Enquanto isso, toda rota
+que depende do banco responde **503** com `codigo: "PREPARANDO"` (a tela de
+login já traduz isso para "o sistema está terminando de subir"). Ver
+`src/server.js`, `src/lib/estado.js` e `src/middleware/prontidaoBanco.js`.
+
+### Trocar a senha de uma conta
+
+Não existe "esqueci minha senha" ainda. Trocar `ADMIN_SENHA` no `.env` depois
+do primeiro boot **não** muda a senha de quem já está usando — de propósito,
+para um deploy não devolver acesso a uma senha antiga sem querer.
 
 ### Fase 3 — venda e pagamento
 
@@ -185,16 +229,25 @@ Outro subdomínio, mesma conta, mesmo servidor (`server1181`).
 
 ```
 src/
-  server.js            ponto de entrada
+  server.js            ponto de entrada — abre a porta, depois prepara o banco (se AUTH_MODO=banco)
   app.js               montagem do Express (helmet, CORS, rate limit, front estático)
   config/env.js        variáveis validadas com Zod
   lib/
-    dadosMock.js              empresas/usuários de teste (Fase 1)
-    repositorioUsuarios.js       acesso a usuário — mock hoje, banco na Fase 2
-    repositorioConfiguracoes.js  custos padrão da conta — memória hoje, banco na Fase 2
+    dadosMock.js              empresas/usuários de teste (AUTH_MODO=mock)
+    repositorioUsuarios.js       acesso a usuário — mock ou Prisma, conforme AUTH_MODO
+    repositorioConfiguracoes.js  custos padrão da conta — mock ou coluna JSON em Empresa
+    prisma.js                 client com driver adapter (sem motor Rust)
+    conexaoBanco.js            traduz a DATABASE_URL na configuração do pool
+    migrador.js                aplica migrations em processo, sem subprocesso
+    sqlSplit.js                divide o SQL respeitando string, crase e comentário
+    bootstrap.js               migrations + seed no boot
+    estado.js                  prontidão do banco, para o 503 explicado
+    diagnostico.js             traduz erro de conexão em causa provável (host? senha? IPv6?)
+    rede.js                    prefere IPv4 na resolução de nomes
     erros.js, logger.js, versao.js
   middleware/
     autenticacao.js    JWT
+    prontidaoBanco.js  503 enquanto o banco prepara (AUTH_MODO=banco only)
     erro.js            tratador central
     validar.js         validação de entrada com Zod
   modules/
@@ -212,7 +265,9 @@ web/src/
   componentes/ConfiguracaoCustosModal.jsx  edita os custos padrão
 
 prisma/
-  schema.prisma        Empresa, Usuario — pronto para a Fase 2, ainda não conectado
+  schema.prisma        Empresa, Usuario
+  migrations/           versionadas; aplicadas no boot (ver lib/migrador.js)
+  seed.js               cria a primeira conta a partir do .env, idempotente
 
 tests/
   configuracoes.schema.test.js

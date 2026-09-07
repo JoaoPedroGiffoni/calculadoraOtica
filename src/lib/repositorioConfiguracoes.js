@@ -1,19 +1,15 @@
 // Custos padrão da conta, usados para pré-preencher a calculadora de margem
-// de contribuição a cada cálculo novo. FASE 1: em memória, igual aos outros
-// repositórios (ver dadosMock.js) — vira coluna JSON em Empresa quando a
-// Fase 2 plugar o banco.
-//
-// CMV de lente, comissão, garantia e embalagem nascem zerados de propósito:
-// variam demais entre óticas para vir com valor "de fábrica" — inventar um
-// número pareceria orientação de negócio que não é.
-const porEmpresa = new Map();
+// de contribuição a cada cálculo novo. AUTH_MODO=mock guarda em memória
+// (zera a cada restart); AUTH_MODO=banco guarda na coluna JSON
+// `Empresa.configuracaoCustos`.
+import { env } from '../config/env.js';
 
 // Taxa de maquininha por parcela NÃO nasce zerada: ao contrário do resto do
 // cadastro, é um número público — taxa de cartão de crédito parcelado de uma
 // maquininha comum, uma referência real de mercado (ficha "Taxas e Prazos"
 // de um app de maquininha, crédito à vista/parcelado, setembro de 2026).
 // Ainda assim é só ponto de partida: cada operadora/negociação tem a sua
-// própria taxa, e o valor certo é o que o ADMIN vê no extrato da própria
+// própria taxa, e o valor certo é o que a pessoa vê no extrato da própria
 // maquininha — por isso o aviso "valor de referência" no modal (ver
 // web/src/componentes/ConfiguracaoCustosModal.jsx) e por isso continua 100%
 // editável.
@@ -43,16 +39,42 @@ function padrao() {
   };
 }
 
-export const repositorioConfiguracoes = {
-  async buscarCustos(empresaId) {
-    if (!porEmpresa.has(empresaId)) porEmpresa.set(empresaId, padrao());
-    return porEmpresa.get(empresaId);
-  },
+// --- mock: em memória ---
+const porEmpresaMock = new Map();
 
-  async atualizarCustos(empresaId, dados) {
-    const atual = await this.buscarCustos(empresaId);
-    const novo = { ...atual, ...dados };
-    porEmpresa.set(empresaId, novo);
-    return novo;
-  },
-};
+async function buscarCustosMock(empresaId) {
+  if (!porEmpresaMock.has(empresaId)) porEmpresaMock.set(empresaId, padrao());
+  return porEmpresaMock.get(empresaId);
+}
+
+async function atualizarCustosMock(empresaId, dados) {
+  const atual = await buscarCustosMock(empresaId);
+  const novo = { ...atual, ...dados };
+  porEmpresaMock.set(empresaId, novo);
+  return novo;
+}
+
+// --- banco: coluna JSON em Empresa ---
+// Sempre mescla com `padrao()` por cima do que está salvo (não o contrário):
+// um campo novo adicionado depois que a conta já existia (como
+// `impostosPercentual`, que não existia nas primeiras contas criadas) precisa
+// aparecer com o valor padrão em vez de undefined, sem exigir migração de
+// dado nenhuma.
+async function buscarCustosBanco(empresaId) {
+  const { prisma } = await import('./prisma.js');
+  const empresa = await prisma.empresa.findUniqueOrThrow({ where: { id: empresaId }, select: { configuracaoCustos: true } });
+  return { ...padrao(), ...(empresa.configuracaoCustos ?? {}) };
+}
+
+async function atualizarCustosBanco(empresaId, dados) {
+  const { prisma } = await import('./prisma.js');
+  const atual = await buscarCustosBanco(empresaId);
+  const novo = { ...atual, ...dados };
+  await prisma.empresa.update({ where: { id: empresaId }, data: { configuracaoCustos: novo } });
+  return novo;
+}
+
+export const repositorioConfiguracoes =
+  env.AUTH_MODO === 'banco'
+    ? { buscarCustos: buscarCustosBanco, atualizarCustos: atualizarCustosBanco }
+    : { buscarCustos: buscarCustosMock, atualizarCustos: atualizarCustosMock };

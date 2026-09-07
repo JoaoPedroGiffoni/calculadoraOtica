@@ -16,6 +16,20 @@ const esquema = z.object({
   AUTH_MODO: z.enum(['mock', 'banco']).default('mock'),
 
   DATABASE_URL: z.string().optional(),
+  DB_MAX_CONEXOES: z.coerce.number().int().positive().default(3),
+  // Aplica migrations pendentes e semeia a primeira conta no boot — só faz
+  // sentido com AUTH_MODO=banco. Ver src/lib/bootstrap.js.
+  MIGRAR_NO_BOOT: z
+    .string()
+    .default('true')
+    .transform((v) => v !== 'false'),
+
+  // Primeira conta, criada pelo seed quando o banco está vazio (ver
+  // prisma/seed.js) — só usadas com AUTH_MODO=banco.
+  EMPRESA_NOME: z.string().optional(),
+  ADMIN_NOME: z.string().optional(),
+  ADMIN_EMAIL: z.string().optional(),
+  ADMIN_SENHA: z.string().optional(),
 
   JWT_SECRET: z.string().min(16, 'JWT_SECRET precisa ter ao menos 16 caracteres'),
   JWT_EXPIRES_IN: z.string().default('7d'),

@@ -10,8 +10,23 @@ const MOTIVOS = {
   invalida: 'Sua sessão não é mais válida. Entre novamente para continuar.',
 };
 
+/**
+ * Traduz a falha para o que a pessoa pode fazer a respeito.
+ *
+ * O 503 com código PREPARANDO é o caso que mais confunde: em produção (banco
+ * de verdade), o servidor abre a porta antes de o banco estar pronto, então
+ * existe uma janela de alguns segundos em que a tela carrega mas o login
+ * ainda não funciona. Sem esta mensagem, o sintoma é "entrei com a senha
+ * certa e deu erro".
+ */
 function explicar(erro) {
   if (!erro) return null;
+  if (erro.codigo === 'PREPARANDO') {
+    return { aviso: 'O sistema está terminando de subir. Tente de novo em alguns segundos.' };
+  }
+  if (erro.codigo === 'BANCO_INDISPONIVEL') {
+    return { erro: 'O sistema está no ar, mas sem acesso ao banco de dados. Avise o suporte.' };
+  }
   if (erro.status === 0) return { erro: 'Sem conexão com o servidor. Verifique sua internet.' };
   return { erro: erro.message, detalhes: erro.detalhes };
 }
@@ -109,6 +124,7 @@ export default function Login() {
             </div>
           </div>
 
+          {explicacao?.aviso && <Aviso mensagem={explicacao.aviso} />}
           <Erro mensagem={explicacao?.erro} detalhes={explicacao?.detalhes} />
 
           <button type="submit" className="botao-primario w-full" disabled={enviando}>
