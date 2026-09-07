@@ -5,22 +5,30 @@
 // ConfiguracaoCustosModal.jsx e GET/PUT /configuracoes/custos), pra
 // pré-preencher.
 
+export function percentualParaReais(percentual, precoVenda) {
+  return Math.round(precoVenda * ((Number(percentual) || 0) / 100) * 100) / 100;
+}
+
 /// CMV da lente resolvido: fixo para "visão simples", percentual do preço de
 /// venda para os demais tipos.
 export function resolverCmvLente(tipoLente, precoVenda, config) {
   const ehSimples = /simples/i.test(tipoLente || '');
   if (ehSimples) return Number(config.cmvLenteSimples) || 0;
-  return Math.round(precoVenda * ((Number(config.cmvLentePercentual) || 0) / 100) * 100) / 100;
+  return percentualParaReais(config.cmvLentePercentual, precoVenda);
 }
 
-/// Taxa da maquininha para o número de parcelas escolhido, já convertida em R$.
+/// Só a taxa (%) cadastrada pra esse número de parcelas — sem multiplicar
+/// pelo preço de venda. O campo de custo financeiro é digitado em % (ver
+/// Calculadora.jsx), não em R$: é assim que vem no extrato da maquininha.
+export function resolverTaxaFinanceira(parcelas, config) {
+  return config.taxaMaquininhaPorParcela?.find((t) => t.parcelas === parcelas)?.percentual ?? 0;
+}
+
+/// Taxa da maquininha para o número de parcelas escolhido, já convertida em
+/// R$ — usado só onde o valor em reais importa (não no formulário, que
+/// mostra a % crua).
 export function resolverCustoFinanceiro(parcelas, precoVenda, config) {
-  const taxa = config.taxaMaquininhaPorParcela?.find((t) => t.parcelas === parcelas)?.percentual ?? 0;
-  return Math.round(precoVenda * (taxa / 100) * 100) / 100;
-}
-
-export function resolverComissao(precoVenda, config) {
-  return Math.round(precoVenda * ((Number(config.comissaoPercentual) || 0) / 100) * 100) / 100;
+  return percentualParaReais(resolverTaxaFinanceira(parcelas, config), precoVenda);
 }
 
 // Taxa de referência de maquininha (crédito à vista/parcelado) — mesma
@@ -44,6 +52,7 @@ export function configuracaoCustosPadrao() {
     custoGarantia: 0,
     custoEmbalagem: 0,
     comissaoPercentual: 0,
+    impostosPercentual: 0,
   };
 }
 

@@ -4,8 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  resolverCmvLente, resolverCustoFinanceiro, resolverComissao, calcularMargem, classificarMargem,
-  configuracaoCustosPadrao,
+  resolverCmvLente, resolverTaxaFinanceira, resolverCustoFinanceiro, percentualParaReais, calcularMargem,
+  classificarMargem, configuracaoCustosPadrao,
 } from '../src/lib/calculo.js';
 
 const config = {
@@ -19,6 +19,7 @@ const config = {
   custoGarantia: 12,
   custoEmbalagem: 4,
   comissaoPercentual: 5,
+  impostosPercentual: 6,
 };
 
 test('CMV lente simples usa o valor fixo do cadastro, não o percentual', () => {
@@ -29,26 +30,38 @@ test('CMV lente multifocal usa percentual do preço de venda', () => {
   assert.equal(resolverCmvLente('Multifocal', 1000, config), 250);
 });
 
-test('custo financeiro usa a taxa cadastrada para o número de parcelas', () => {
-  assert.equal(resolverCustoFinanceiro(3, 1000, config), 45);
+test('taxa financeira é só a % cadastrada pra parcela, sem multiplicar pelo preço', () => {
+  assert.equal(resolverTaxaFinanceira(3, config), 4.5);
 });
 
 test('parcela sem taxa cadastrada não quebra — vira 0', () => {
-  assert.equal(resolverCustoFinanceiro(7, 1000, config), 0);
+  assert.equal(resolverTaxaFinanceira(7, config), 0);
 });
 
-test('comissão é o percentual do cadastro sobre o preço de venda', () => {
-  assert.equal(resolverComissao(1000, config), 50);
+test('custo financeiro em R$ ainda existe pra quem precisa do valor já convertido', () => {
+  assert.equal(resolverCustoFinanceiro(3, 1000, config), 45);
 });
 
-test('margem soma os custos e divide pelo preço de venda', () => {
+test('percentualParaReais converte % em R$ sobre o preço de venda', () => {
+  assert.equal(percentualParaReais(config.comissaoPercentual, 1000), 50);
+  assert.equal(percentualParaReais(config.impostosPercentual, 1000), 60);
+});
+
+test('percentual ausente/indefinido não quebra — vira 0', () => {
+  assert.equal(percentualParaReais(undefined, 1000), 0);
+});
+
+test('margem soma os custos (incluindo impostos) e divide pelo preço de venda', () => {
   const r = calcularMargem({
     precoVenda: 1000,
-    custos: { cmvArmacao: 150, cmvLente: 250, custoTratamentos: 0, custoFinanceiro: 45, custoExameVista: 10, comissaoVendedor: 50, custoGarantia: 12, custoEmbalagem: 4 },
+    custos: {
+      cmvArmacao: 150, cmvLente: 250, custoTratamentos: 0, custoFinanceiro: 45, custoExameVista: 10,
+      comissaoVendedor: 50, custoGarantia: 12, custoEmbalagem: 4, impostos: 60,
+    },
   });
-  assert.equal(r.custosTotal, 521);
-  assert.equal(r.margemRs, 479);
-  assert.equal(r.margemPercentual, 47.9);
+  assert.equal(r.custosTotal, 581);
+  assert.equal(r.margemRs, 419);
+  assert.equal(r.margemPercentual, 41.9);
 });
 
 test('classifica a margem nas faixas certas, nos limites exatos', () => {
