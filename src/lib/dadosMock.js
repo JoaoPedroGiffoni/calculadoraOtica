@@ -1,10 +1,16 @@
-// FASE 1 (AUTH_MODO=mock): quem loga e de qual ótica, tudo em memória —
+// FASE 1 (AUTH_MODO=mock): quem loga e de qual conta, tudo em memória —
 // zerado a cada restart do processo. Existe para validar o produto (login +
-// calculadora) antes de plugar banco de verdade e o fluxo de compra.
+// calculadora de margem) antes de plugar banco de verdade e o fluxo de venda
+// de acesso.
+//
+// Um login = um acesso vendido. Não há subconta nem papel dentro de uma
+// mesma empresa — quem loga é o único dono daquele acesso, ponto. Empresa
+// segue separada de Usuario mesmo assim porque `status` (trial/ativo/
+// inadimplente/cancelado) é o que o webhook de pagamento da Fase 3 vai
+// mexer, e essa marcação não deveria virar coluna solta em Usuario.
 //
 // Formato pensado para migrar direto para as tabelas Empresa/Usuario do
-// prisma/schema.prisma quando a Fase 2 chegar: mesmos nomes de campo, mesmo
-// enum de papel.
+// prisma/schema.prisma quando a Fase 2 chegar.
 //
 // Para editar quem consegue entrar agora, mexa só aqui.
 import bcrypt from 'bcryptjs';
@@ -26,7 +32,6 @@ export const usuariosMock = [
     nome: 'Ana Souza',
     email: 'ana@visaoclara.com.br',
     senhaHash: senhaHashPadrao,
-    papel: 'ADMIN',
     ativo: true,
   },
   {
@@ -35,19 +40,6 @@ export const usuariosMock = [
     nome: 'Carlos Lima',
     email: 'carlos@bellavista.com.br',
     senhaHash: senhaHashPadrao,
-    papel: 'ADMIN',
-    ativo: true,
-  },
-  // VENDEDOR de teste — para conferir que custo/margem (ver
-  // src/modules/orcamentos/orcamentos.rotas.js#paraPapel) ficam mesmo fora
-  // do alcance de quem não é ADMIN.
-  {
-    id: 'usuario-3',
-    empresaId: 'empresa-1',
-    nome: 'Bruna Costa',
-    email: 'bruna@visaoclara.com.br',
-    senhaHash: senhaHashPadrao,
-    papel: 'VENDEDOR',
     ativo: true,
   },
 ];

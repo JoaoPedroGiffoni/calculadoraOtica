@@ -49,10 +49,7 @@ rotasAuth.post(
     res.json({
       token,
       expiraEm,
-      usuario: {
-        id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel,
-        empresaId: usuario.empresaId,
-      },
+      usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId },
       empresa: empresa ? { id: empresa.id, nome: empresa.nome, status: empresa.status } : null,
     });
   }),

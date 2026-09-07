@@ -1,38 +1,26 @@
-// Espelha src/modules/orcamentos/calculo.js no servidor — mesma conta, só
-// para dar pré-visualização ao vivo no formulário sem round-trip na API. O
-// valor que conta de verdade é sempre o que a API devolve depois do submit.
-export function calcularOrcamento({ armacao, lente, tratamentos = [], desconto, parcelas = 1 }) {
-  const totalTratamentos = tratamentos.reduce((soma, t) => soma + (Number(t.valor) || 0), 0);
-  const subtotal = (Number(armacao.valor) || 0) + (Number(lente.valor) || 0) + totalTratamentos;
+// Toda a conta da calculadora de margem — puramente local, nada disto
+// depende do servidor: não há orçamento pra montar nem resultado pra salvar
+// (ver README), então o cálculo em si nunca precisa de round-trip na API. O
+// que vem da API é só o cadastro de custos padrão (ver
+// ConfiguracaoCustosModal.jsx e GET/PUT /configuracoes/custos), pra
+// pré-preencher.
 
-  const valorDesconto =
-    desconto?.tipo === 'percentual'
-      ? Math.round(subtotal * ((Number(desconto.valor) || 0) / 100) * 100) / 100
-      : Number(desconto?.valor) || 0;
-
-  const total = Math.max(0, Math.round((subtotal - valorDesconto) * 100) / 100);
-  const valorParcela = parcelas > 0 ? Math.round((total / parcelas) * 100) / 100 : total;
-
-  return { subtotal, totalTratamentos, valorDesconto, total, parcelas, valorParcela };
-}
-
-/// CMV da lente resolvido: fixo para "visão simples", percentual do ticket
-/// (venda total) para os demais tipos — mesmo critério do back
-/// (ver orcamentos.rotas.js/calculo.js).
-export function resolverCmvLente(tipoLente, vendaTotal, config) {
+/// CMV da lente resolvido: fixo para "visão simples", percentual do preço de
+/// venda para os demais tipos.
+export function resolverCmvLente(tipoLente, precoVenda, config) {
   const ehSimples = /simples/i.test(tipoLente || '');
   if (ehSimples) return Number(config.cmvLenteSimples) || 0;
-  return Math.round(vendaTotal * ((Number(config.cmvLentePercentual) || 0) / 100) * 100) / 100;
+  return Math.round(precoVenda * ((Number(config.cmvLentePercentual) || 0) / 100) * 100) / 100;
 }
 
 /// Taxa da maquininha para o número de parcelas escolhido, já convertida em R$.
-export function resolverCustoFinanceiro(parcelas, vendaTotal, config) {
+export function resolverCustoFinanceiro(parcelas, precoVenda, config) {
   const taxa = config.taxaMaquininhaPorParcela?.find((t) => t.parcelas === parcelas)?.percentual ?? 0;
-  return Math.round(vendaTotal * (taxa / 100) * 100) / 100;
+  return Math.round(precoVenda * (taxa / 100) * 100) / 100;
 }
 
-export function resolverComissao(vendaTotal, config) {
-  return Math.round(vendaTotal * ((Number(config.comissaoPercentual) || 0) / 100) * 100) / 100;
+export function resolverComissao(precoVenda, config) {
+  return Math.round(precoVenda * ((Number(config.comissaoPercentual) || 0) / 100) * 100) / 100;
 }
 
 /// Mesma forma do que GET /configuracoes/custos devolve — usado como valor
@@ -50,13 +38,16 @@ export function configuracaoCustosPadrao() {
   };
 }
 
-/// Soma os custos e calcula a margem — mesma conta de calcularMargem no
-/// backend (que é quem manda de verdade; isto é só preview).
-export function calcularMargem({ vendaTotal, custos }) {
+/// Soma os custos e calcula a margem de contribuição.
+///
+/// Não entra aqui: aluguel, folha fixa, pró-labore, contador, sistemas,
+/// energia, marketing — isso é custo fixo/CAC, fora do escopo de uma venda
+/// individual.
+export function calcularMargem({ precoVenda, custos }) {
   const custosTotal =
     Math.round(Object.values(custos).reduce((soma, v) => soma + (Number(v) || 0), 0) * 100) / 100;
-  const margemRs = Math.round((vendaTotal - custosTotal) * 100) / 100;
-  const margemPercentual = vendaTotal > 0 ? Math.round((margemRs / vendaTotal) * 10000) / 100 : 0;
+  const margemRs = Math.round((precoVenda - custosTotal) * 100) / 100;
+  const margemPercentual = precoVenda > 0 ? Math.round((margemRs / precoVenda) * 10000) / 100 : 0;
   return { custosTotal, margemRs, margemPercentual };
 }
 

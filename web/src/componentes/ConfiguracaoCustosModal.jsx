@@ -1,7 +1,6 @@
-// Custos padrão da empresa — só ADMIN abre isto (ver Calculadora.jsx). Editar
-// aqui muda o que pré-preenche a seção de margem em todo orçamento novo; não
-// mexe em orçamentos já salvos (a margem deles já foi calculada e congelada
-// na hora da venda).
+// Custos padrão da conta. Editar aqui só muda o que pré-preenche o próximo
+// cálculo — nada é salvo/histórico, então não existe "cálculo antigo" para
+// atualizar retroativamente.
 import { useState } from 'react';
 import { Erro, Girando } from './Ui.jsx';
 import { IconeX } from './Icones.jsx';

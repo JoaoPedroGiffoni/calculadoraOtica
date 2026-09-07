@@ -1,7 +1,7 @@
-// Custos padrão da empresa, usados para pré-preencher a seção de margem de
-// contribuição (só ADMIN vê/edita — ver orcamentos.rotas.js). FASE 1: em
-// memória, igual aos outros repositórios (ver dadosMock.js) — vira coluna
-// JSON em Empresa quando a Fase 2 plugar o banco.
+// Custos padrão da conta, usados para pré-preencher a calculadora de margem
+// de contribuição a cada cálculo novo. FASE 1: em memória, igual aos outros
+// repositórios (ver dadosMock.js) — vira coluna JSON em Empresa quando a
+// Fase 2 plugar o banco.
 //
 // Tudo nasce zerado de propósito: taxa de maquininha, CMV de lente e comissão
 // variam demais entre óticas para vir com valor "de fábrica" — inventar um

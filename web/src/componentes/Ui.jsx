@@ -60,19 +60,9 @@ export function Aviso({ mensagem, compacto = false }) {
 }
 
 /// Selo de leitura da margem de contribuição — a régua de saúde financeira
-/// da venda (ver classificarMargem em lib/calculo.js). `compacto` é para
-/// caber numa linha de histórico; a versão normal vai no resultado e no
-/// formulário, com a régua completa por baixo.
-export function SeloMargem({ margemRs, margemPercentual, compacto = false }) {
+/// da venda (ver classificarMargem em lib/calculo.js).
+export function SeloMargem({ margemRs, margemPercentual }) {
   const faixa = classificarMargem(margemPercentual);
-
-  if (compacto) {
-    return (
-      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${faixa.classe}`}>
-        {faixa.emoji} {margemPercentual}%
-      </span>
-    );
-  }
 
   return (
     <div className="space-y-2">
@@ -109,7 +99,7 @@ export function Marca({ tamanho = 'grande' }) {
       </span>
       <div className={grande ? '' : 'leading-tight'}>
         <h1 className={grande ? 'text-xl font-bold tracking-tight' : 'text-sm font-bold tracking-tight'}>Calculadora Ótica</h1>
-        {grande && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Orçamento de óculos em segundos</p>}
+        {grande && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Margem de contribuição em segundos</p>}
       </div>
     </div>
   );

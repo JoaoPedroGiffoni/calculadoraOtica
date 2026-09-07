@@ -118,7 +118,7 @@ export default function Login() {
         </form>
 
         <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
-          Acesso restrito à equipe da sua ótica.
+          Acesso vendido por login único, sem subconta.
         </p>
       </div>
     </div>
