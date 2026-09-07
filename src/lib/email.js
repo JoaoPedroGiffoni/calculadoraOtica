@@ -11,6 +11,19 @@ import { logger } from './logger.js';
 
 const RESEND_URL = 'https://api.resend.com/emails';
 
+/// `para`/`nomeEmpresa` podem carregar o que quer que o pagador tenha
+/// digitado no checkout do Mercado Pago — escapa antes de colar no HTML do
+/// e-mail, senão vira injeção de HTML (o e-mail vai por HTML puro, sem
+/// template engine nenhum escapando por baixo).
+function escaparHtml(texto) {
+  return String(texto)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /// Lança se a API recusar — quem chama decide o que fazer (a rota de
 /// webhook não deixa a criação da conta falhar por causa do e-mail; ver
 /// pagamentos.rotas.js).
@@ -41,16 +54,18 @@ async function enviar({ para, assunto, html }) {
 /// O e-mail que uma conta nova recebe assim que a assinatura é aprovada.
 export async function enviarEmailAcesso({ para, nomeEmpresa, senha, urlBase }) {
   const urlLogin = `${urlBase}/login`;
+  const nomeSeguro = escaparHtml(nomeEmpresa);
+  const emailSeguro = escaparHtml(para);
 
   const html = `
     <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
       <h1 style="font-size: 20px;">Seu acesso à Calculadora Ótica está pronto</h1>
-      <p>Olá! Sua assinatura foi confirmada e a conta de <strong>${nomeEmpresa}</strong> já está liberada.</p>
+      <p>Olá! Sua assinatura foi confirmada e a conta de <strong>${nomeSeguro}</strong> já está liberada.</p>
       <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
         <tr>
           <td style="padding: 12px 16px; background: #f1f5f9; border-radius: 12px 12px 0 0;">
             <span style="color: #64748b; font-size: 13px;">E-mail de acesso</span><br />
-            <strong>${para}</strong>
+            <strong>${emailSeguro}</strong>
           </td>
         </tr>
         <tr>
