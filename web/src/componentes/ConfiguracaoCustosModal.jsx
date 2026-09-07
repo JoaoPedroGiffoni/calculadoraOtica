@@ -56,6 +56,7 @@ export default function ConfiguracaoCustosModal({ config, aoFechar, aoSalvar }) 
           <CampoNumero rotulo="Garantia / GMT (R$)" valor={local.custoGarantia} aoMudar={(v) => campo('custoGarantia', v)} />
           <CampoNumero rotulo="Embalagem (R$)" valor={local.custoEmbalagem} aoMudar={(v) => campo('custoEmbalagem', v)} />
           <CampoNumero rotulo="Comissão do vendedor (%)" valor={local.comissaoPercentual} aoMudar={(v) => campo('comissaoPercentual', v)} />
+          <CampoNumero rotulo="Impostos (%)" valor={local.impostosPercentual} aoMudar={(v) => campo('impostosPercentual', v)} />
         </div>
 
         <div>

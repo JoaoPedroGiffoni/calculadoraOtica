@@ -36,6 +36,10 @@ function padrao() {
     custoGarantia: 0,
     custoEmbalagem: 0,
     comissaoPercentual: 0,
+    // Imposto sobre a venda (Simples Nacional, ICMS-ST etc.) — varia demais
+    // por regime tributário e faturamento pra vir com um número "de
+    // fábrica", mesmo critério da comissão logo acima.
+    impostosPercentual: 0,
   };
 }
 

@@ -17,6 +17,7 @@ export const configuracaoCustosSchema = z
     custoGarantia: z.coerce.number().min(0),
     custoEmbalagem: z.coerce.number().min(0),
     comissaoPercentual: z.coerce.number().min(0).max(100),
+    impostosPercentual: z.coerce.number().min(0).max(100),
   })
   .partial()
   .refine((d) => Object.keys(d).length > 0, { message: 'Nada para atualizar' });

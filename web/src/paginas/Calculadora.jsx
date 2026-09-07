@@ -6,43 +6,52 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/autenticacao.jsx';
 import { useTema } from '../lib/tema.jsx';
 import { api } from '../lib/api.js';
+import { formatarMoeda } from '../lib/formato.js';
 import {
-  resolverCmvLente, resolverCustoFinanceiro, resolverComissao, calcularMargem, configuracaoCustosPadrao,
+  resolverCmvLente, resolverTaxaFinanceira, percentualParaReais, calcularMargem, configuracaoCustosPadrao,
 } from '../lib/calculo.js';
 import { Marca, SeloMargem } from '../componentes/Ui.jsx';
 import ConfiguracaoCustosModal from '../componentes/ConfiguracaoCustosModal.jsx';
 import { IconeSol, IconeLua, IconeSair, IconeEngrenagem } from '../componentes/Icones.jsx';
 
+// Valores em R$, editados diretamente — sem regra pronta pra converter de
+// outra coisa (CMV da armação e tratamentos vendidos variam venda a venda
+// demais pra ter até um padrão sensato; os outros três vêm do cadastro).
 const CUSTOS_VAZIOS = {
-  cmvArmacao: '0', cmvLente: '0', custoTratamentos: '0', custoFinanceiro: '0',
-  custoExameVista: '0', comissaoVendedor: '0', custoGarantia: '0', custoEmbalagem: '0',
+  cmvArmacao: '0', cmvLente: '0', custoTratamentos: '0', custoExameVista: '0', custoGarantia: '0', custoEmbalagem: '0',
 };
 
-const CAMPOS_CUSTO = [
+const CAMPOS_CUSTO_RS = [
   { chave: 'cmvArmacao', rotulo: '2. CMV da armação' },
   { chave: 'cmvLente', rotulo: '3. CMV da lente' },
   { chave: 'custoTratamentos', rotulo: '4. Tratamentos / upgrades vendidos' },
-  { chave: 'custoFinanceiro', rotulo: '5. Custo financeiro do parcelamento' },
   { chave: 'custoExameVista', rotulo: '6. Exame de vista' },
-  { chave: 'comissaoVendedor', rotulo: '7. Comissão / premiação do vendedor' },
-  { chave: 'custoGarantia', rotulo: '8. Garantia / proteção (GMT)' },
-  { chave: 'custoEmbalagem', rotulo: '9. Embalagem / estojo' },
+  { chave: 'custoGarantia', rotulo: '9. Garantia / proteção (GMT)' },
+  { chave: 'custoEmbalagem', rotulo: '10. Embalagem / estojo' },
 ];
 
-/// Campos que o cadastro de custos padrão consegue deduzir sozinho — os
-/// outros dois (CMV da armação, tratamentos vendidos) variam venda a venda
-/// demais para ter um padrão que faça sentido, então ficam sempre em branco.
-const CAMPOS_COM_PADRAO = new Set([
-  'cmvLente', 'custoFinanceiro', 'comissaoVendedor', 'custoExameVista', 'custoGarantia', 'custoEmbalagem',
-]);
+/// Campos em R$ que o cadastro consegue deduzir sozinho.
+const CAMPOS_RS_COM_PADRAO = new Set(['cmvLente', 'custoExameVista', 'custoGarantia', 'custoEmbalagem']);
+
+// Valores em %: sempre uma fração do preço de venda, do jeito que aparecem
+// no extrato/contrato de verdade (taxa da maquininha, comissão, imposto) —
+// digitar em R$ direto exigiria fazer a conta de cabeça toda vez que o
+// preço de venda mudasse.
+const PERCENTUAIS_VAZIOS = { custoFinanceiro: '0', comissao: '0', impostos: '0' };
+
+const CAMPOS_PERCENTUAL = [
+  { chave: 'custoFinanceiro', rotulo: '5. Custo financeiro do parcelamento (%)' },
+  { chave: 'comissao', rotulo: '7. Comissão / premiação do vendedor (%)' },
+  { chave: 'impostos', rotulo: '8. Impostos (%)' },
+];
 
 function numero(valor) {
   const n = Number(String(valor).replace(',', '.'));
   return Number.isFinite(n) ? n : 0;
 }
 
-function custosParaNumeros(custos) {
-  return Object.fromEntries(Object.entries(custos).map(([k, v]) => [k, numero(v)]));
+function paraNumeros(objeto) {
+  return Object.fromEntries(Object.entries(objeto).map(([k, v]) => [k, numero(v)]));
 }
 
 export default function Calculadora() {
@@ -55,8 +64,12 @@ export default function Calculadora() {
   const [precoVenda, setPrecoVenda] = useState('');
   const [tipoLente, setTipoLente] = useState('multifocal');
   const [parcelas, setParcelas] = useState(1);
+
   const [custos, setCustos] = useState(CUSTOS_VAZIOS);
   const [custosTocados, setCustosTocados] = useState(new Set());
+
+  const [percentuais, setPercentuais] = useState(PERCENTUAIS_VAZIOS);
+  const [percentuaisTocados, setPercentuaisTocados] = useState(new Set());
 
   useEffect(() => {
     api.get('/configuracoes/custos').then(setConfigCustos).catch(() => {});
@@ -65,26 +78,42 @@ export default function Calculadora() {
   const precoVendaNum = numero(precoVenda);
   const tipoLenteTexto = tipoLente === 'simples' ? 'Visão simples' : 'Multifocal';
 
-  // Pré-preenche o que dá pra deduzir do cadastro (ver CAMPOS_COM_PADRAO),
+  // Pré-preenche o que dá pra deduzir do cadastro (ver CAMPOS_RS_COM_PADRAO),
   // sem sobrescrever o que a pessoa já editou à mão neste cálculo.
   useEffect(() => {
     setCustos((c) => ({
       ...c,
       cmvLente: custosTocados.has('cmvLente') ? c.cmvLente : String(resolverCmvLente(tipoLenteTexto, precoVendaNum, configCustos)),
-      custoFinanceiro: custosTocados.has('custoFinanceiro')
-        ? c.custoFinanceiro
-        : String(resolverCustoFinanceiro(numero(parcelas) || 1, precoVendaNum, configCustos)),
-      comissaoVendedor: custosTocados.has('comissaoVendedor') ? c.comissaoVendedor : String(resolverComissao(precoVendaNum, configCustos)),
       custoExameVista: custosTocados.has('custoExameVista') ? c.custoExameVista : String(configCustos.custoExameVista ?? 0),
       custoGarantia: custosTocados.has('custoGarantia') ? c.custoGarantia : String(configCustos.custoGarantia ?? 0),
       custoEmbalagem: custosTocados.has('custoEmbalagem') ? c.custoEmbalagem : String(configCustos.custoEmbalagem ?? 0),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [configCustos, tipoLenteTexto, precoVendaNum, parcelas]);
+  }, [configCustos, tipoLenteTexto, precoVendaNum]);
+
+  // Mesma ideia para os campos em %. Custo financeiro depende de quantas
+  // parcelas foram escolhidas (a taxa da maquininha muda por parcela); os
+  // outros dois são flat do cadastro.
+  useEffect(() => {
+    setPercentuais((p) => ({
+      ...p,
+      custoFinanceiro: percentuaisTocados.has('custoFinanceiro')
+        ? p.custoFinanceiro
+        : String(resolverTaxaFinanceira(numero(parcelas) || 1, configCustos)),
+      comissao: percentuaisTocados.has('comissao') ? p.comissao : String(configCustos.comissaoPercentual ?? 0),
+      impostos: percentuaisTocados.has('impostos') ? p.impostos : String(configCustos.impostosPercentual ?? 0),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configCustos, parcelas]);
 
   function editarCusto(chave, valor) {
     setCustos((c) => ({ ...c, [chave]: valor }));
     setCustosTocados((t) => new Set(t).add(chave));
+  }
+
+  function editarPercentual(chave, valor) {
+    setPercentuais((p) => ({ ...p, [chave]: valor }));
+    setPercentuaisTocados((t) => new Set(t).add(chave));
   }
 
   function limpar() {
@@ -93,6 +122,8 @@ export default function Calculadora() {
     setParcelas(1);
     setCustos(CUSTOS_VAZIOS);
     setCustosTocados(new Set());
+    setPercentuais(PERCENTUAIS_VAZIOS);
+    setPercentuaisTocados(new Set());
   }
 
   async function salvarConfigCustos(novoConfig) {
@@ -100,7 +131,18 @@ export default function Calculadora() {
     setConfigCustos(salvo);
   }
 
-  const margem = precoVendaNum > 0 ? calcularMargem({ precoVenda: precoVendaNum, custos: custosParaNumeros(custos) }) : null;
+  const custoFinanceiroRs = percentualParaReais(percentuais.custoFinanceiro, precoVendaNum);
+  const comissaoRs = percentualParaReais(percentuais.comissao, precoVendaNum);
+  const impostosRs = percentualParaReais(percentuais.impostos, precoVendaNum);
+
+  const margem = precoVendaNum > 0
+    ? calcularMargem({
+        precoVenda: precoVendaNum,
+        custos: { ...paraNumeros(custos), custoFinanceiro: custoFinanceiroRs, comissaoVendedor: comissaoRs, impostos: impostosRs },
+      })
+    : null;
+
+  const reaisPorPercentual = { custoFinanceiro: custoFinanceiroRs, comissao: comissaoRs, impostos: impostosRs };
 
   return (
     <div className="min-h-dvh bg-slate-100 pb-16 dark:bg-slate-950">
@@ -182,7 +224,7 @@ export default function Calculadora() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {CAMPOS_CUSTO.map(({ chave, rotulo }) => (
+            {CAMPOS_CUSTO_RS.map(({ chave, rotulo }) => (
               <div key={chave}>
                 <label className="rotulo text-xs">{rotulo}</label>
                 <input
@@ -193,9 +235,30 @@ export default function Calculadora() {
                   value={custos[chave]}
                   onChange={(e) => editarCusto(chave, e.target.value)}
                 />
-                {CAMPOS_COM_PADRAO.has(chave) && !custosTocados.has(chave) && (
+                {CAMPOS_RS_COM_PADRAO.has(chave) && !custosTocados.has(chave) && (
                   <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">pré-preenchido pelo cadastro</p>
                 )}
+              </div>
+            ))}
+
+            {CAMPOS_PERCENTUAL.map(({ chave, rotulo }) => (
+              <div key={chave}>
+                <label className="rotulo text-xs">{rotulo}</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="campo pr-8"
+                    value={percentuais[chave]}
+                    onChange={(e) => editarPercentual(chave, e.target.value)}
+                  />
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-400 dark:text-slate-500">%</span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
+                  {!percentuaisTocados.has(chave) && 'pré-preenchido pelo cadastro · '}
+                  = {formatarMoeda(reaisPorPercentual[chave])}
+                </p>
               </div>
             ))}
           </div>

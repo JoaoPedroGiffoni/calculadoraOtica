@@ -15,6 +15,14 @@ test('recusa comissão acima de 100%', () => {
   assert.equal(configuracaoCustosSchema.safeParse({ comissaoPercentual: 150 }).success, false);
 });
 
+test('recusa impostos acima de 100%', () => {
+  assert.equal(configuracaoCustosSchema.safeParse({ impostosPercentual: 101 }).success, false);
+});
+
+test('aceita atualizar só os impostos', () => {
+  assert.equal(configuracaoCustosSchema.safeParse({ impostosPercentual: 8.5 }).success, true);
+});
+
 test('recusa taxa de maquininha com parcela fora de 1-12', () => {
   const r = configuracaoCustosSchema.safeParse({
     taxaMaquininhaPorParcela: [{ parcelas: 13, percentual: 5 }],
