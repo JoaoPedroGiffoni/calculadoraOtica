@@ -81,8 +81,13 @@ async function requisitar(caminho, opcoes = {}) {
   if (!resposta.ok) {
     const erro = dado?.erro;
 
+    // Assinatura inativa também derruba a sessão em andamento — não só
+    // token inválido/expirado — pra cortar o acesso na hora em que a
+    // assinatura para de pagar, sem esperar o token expirar.
     if (resposta.status === 401 && !ehLogin) {
       derrubarSessao(erro?.codigo === 'SESSAO_EXPIRADA' ? 'expirada' : 'invalida');
+    } else if (resposta.status === 403 && erro?.codigo === 'ASSINATURA_INATIVA' && !ehLogin) {
+      derrubarSessao('assinatura_inativa');
     }
 
     throw new ErroApi(erro?.mensagem ?? `Erro ${resposta.status}`, resposta.status, erro?.detalhes, erro?.codigo);

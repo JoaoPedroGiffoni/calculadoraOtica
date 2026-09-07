@@ -2,7 +2,9 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { repositorioUsuarios } from '../../lib/repositorioUsuarios.js';
-import { erroNaoAutenticado } from '../../lib/erros.js';
+import { erroNaoAutenticado, erroAssinaturaInativa } from '../../lib/erros.js';
+
+const STATUS_BLOQUEIA_ACESSO = new Set(['inadimplente', 'cancelado']);
 import { assinarToken, autenticar } from '../../middleware/autenticacao.js';
 import { validarCorpo } from '../../middleware/validar.js';
 import { rota } from '../../middleware/erro.js';
@@ -43,6 +45,7 @@ rotasAuth.post(
     if (!confere) throw credenciaisInvalidas;
 
     const empresa = await repositorioUsuarios.buscarEmpresa(usuario.empresaId);
+    if (empresa && STATUS_BLOQUEIA_ACESSO.has(empresa.status)) throw erroAssinaturaInativa(empresa.status);
 
     const { token, expiraEm } = assinarToken(usuario);
 

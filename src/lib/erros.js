@@ -32,3 +32,17 @@ export const erroNaoEncontrado = (recurso = 'Registro') => {
 
 export const erroConflito = (msg, detalhes) => new ErroHttp(409, msg, detalhes, 'CONFLITO');
 export const erroRegraNegocio = (msg, detalhes) => new ErroHttp(422, msg, detalhes, 'REGRA_NEGOCIO');
+
+/// Empresa em atraso ou cancelada: bloqueia tanto o login quanto qualquer
+/// requisição autenticada em andamento (ver middleware/autenticacao.js) —
+/// assinante que parou de pagar perde o acesso na hora, não só no próximo
+/// login.
+export const erroAssinaturaInativa = (status) =>
+  new ErroHttp(
+    403,
+    status === 'cancelado'
+      ? 'Assinatura cancelada. Para voltar a usar, assine novamente.'
+      : 'Assinatura com pagamento pendente. Regularize para continuar usando.',
+    { status },
+    'ASSINATURA_INATIVA',
+  );
