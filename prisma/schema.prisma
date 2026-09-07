@@ -7,9 +7,12 @@
 // própria Hostinger, engineType "client" + driverAdapters, sem motor Rust —
 // ver o schema.prisma daquele projeto para o porquê completo).
 //
-// Multi-tenant: cada ótica que compra o acesso é uma Empresa; todo o resto
-// (Usuario, Orcamento) pendura nela. Isolamento é por empresaId em toda
-// consulta — nunca listar Orcamento sem filtrar pela empresa de quem pediu.
+// Multi-tenant, mas sem hierarquia: cada acesso vendido é uma Empresa com
+// exatamente um Usuario — não há convite de equipe nem papel dentro da
+// mesma conta (ver dadosMock.js). Empresa existe separada de Usuario porque
+// `status` (trial/ativo/inadimplente/cancelado) é o que o webhook de
+// pagamento da Fase 3 muda, e essa marcação não deveria virar coluna solta
+// em Usuario.
 // ============================================================================
 
 generator client {
@@ -23,11 +26,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum PapelUsuario {
-  ADMIN
-  VENDEDOR
-}
-
 /// Ciclo de vida do acesso vendido. `trial` nasce da primeira compra ou de um
 /// convite manual; os demais valores acompanham o webhook do meio de
 /// pagamento escolhido (ver README, seção "Próximas fases").
@@ -39,79 +37,40 @@ enum StatusEmpresa {
 }
 
 /// Uma ótica cliente do sistema — o "tenant". Nasce quando alguém compra o
-/// acesso (Fase 2: webhook do pagamento cria o registro e o primeiro
-/// usuário, e manda o e-mail de acesso).
+/// acesso (Fase 2: webhook do pagamento cria o registro e o usuário, e manda
+/// o e-mail de acesso).
 model Empresa {
   id        String        @id @default(uuid())
   nome      String
   status    StatusEmpresa @default(trial)
-  /// Custos padrão para a seção de margem de contribuição (CMV de lente,
-  /// taxa da maquininha por parcela, comissão etc.) — JSON porque o formato
-  /// já é livre no repositório mock (ver src/lib/repositorioConfiguracoes.js)
-  /// e não há consulta que precise indexar campo por campo aqui dentro.
+  /// Custos padrão da calculadora de margem (CMV de lente, taxa da
+  /// maquininha por parcela, comissão etc.) — JSON porque o formato já é
+  /// livre no repositório mock (ver src/lib/repositorioConfiguracoes.js) e
+  /// não há consulta que precise indexar campo por campo aqui dentro.
   configuracaoCustos Json?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  usuarios   Usuario[]
-  orcamentos Orcamento[]
+  usuarios Usuario[]
 
   @@map("empresas")
 }
 
+/// O login do acesso vendido. Um por Empresa — não é "equipe", é a conta.
 model Usuario {
-  id              String       @id @default(uuid())
+  id              String    @id @default(uuid())
   empresaId       String
   nome            String
-  email           String       @unique
+  email           String    @unique
   senhaHash       String
   senhaAlteradaEm DateTime?
-  papel           PapelUsuario @default(VENDEDOR)
-  ativo           Boolean      @default(true)
+  ativo           Boolean   @default(true)
   ultimoLogin     DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  empresa    Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  orcamentos Orcamento[]
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@index([empresaId])
   @@map("usuarios")
-}
-
-/// Um orçamento de óculos calculado e salvo. Os itens (armação, lente,
-/// tratamentos) ficam em JSON — a lista de tratamentos é de tamanho
-/// variável e não muda com frequência suficiente para justificar tabelas
-/// próprias; o que importa consultar depois (cliente, total, data) já vem
-/// como coluna.
-model Orcamento {
-  id             String   @id @default(uuid())
-  empresaId      String
-  criadoPorId    String
-  cliente        String
-  armacao        Json
-  lente          Json
-  tratamentos    Json
-  desconto       Json
-  observacoes    String?  @db.Text
-  subtotal       Decimal  @db.Decimal(10, 2)
-  totalTratamentos Decimal @db.Decimal(10, 2)
-  valorDesconto  Decimal  @db.Decimal(10, 2)
-  total          Decimal  @db.Decimal(10, 2)
-  parcelas       Int      @default(1)
-  valorParcela   Decimal  @db.Decimal(10, 2)
-  /// Custo e margem de contribuição — só preenchidos quando quem lançou o
-  /// orçamento é ADMIN (ver orcamentos.rotas.js#paraPapel: um VENDEDOR nunca
-  /// vê estes dois campos na resposta da API, mesmo consultando o próprio
-  /// orçamento). Nulos quando não há custo lançado.
-  custos         Json?
-  margemRs       Decimal? @db.Decimal(10, 2)
-  margemPercentual Decimal? @db.Decimal(5, 2)
-  criadoEm       DateTime @default(now())
-
-  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  criadoPor Usuario @relation(fields: [criadoPorId], references: [id], onDelete: Restrict)
-
-  @@index([empresaId, criadoEm])
-  @@map("orcamentos")
 }

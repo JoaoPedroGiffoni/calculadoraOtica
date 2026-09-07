@@ -5,7 +5,6 @@ import { autenticar } from '../middleware/autenticacao.js';
 import { versao } from '../lib/versao.js';
 import { env } from '../config/env.js';
 import { rotasAuth } from '../modules/auth/auth.rotas.js';
-import { rotasOrcamentos } from '../modules/orcamentos/orcamentos.rotas.js';
 import { rotasConfiguracoes } from '../modules/configuracoes/configuracoes.rotas.js';
 
 export const rotasApi = Router();
@@ -26,5 +25,4 @@ rotasApi.use('/auth', rotasAuth);
 
 // --- A partir daqui, tudo autenticado ---
 rotasApi.use(autenticar);
-rotasApi.use(rotasOrcamentos);
 rotasApi.use(rotasConfiguracoes);

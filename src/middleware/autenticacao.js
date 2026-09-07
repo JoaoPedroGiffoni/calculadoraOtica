@@ -4,13 +4,13 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { repositorioUsuarios } from '../lib/repositorioUsuarios.js';
-import { erroNaoAutenticado, erroSessaoExpirada, erroSemPermissao } from '../lib/erros.js';
+import { erroNaoAutenticado, erroSessaoExpirada } from '../lib/erros.js';
 
 /// Assina o token e devolve junto a data de expiração. O front usa esse
 /// carimbo para avisar o usuário ANTES de a sessão cair.
 export function assinarToken(usuario) {
   const token = jwt.sign(
-    { sub: usuario.id, email: usuario.email, papel: usuario.papel, empresaId: usuario.empresaId },
+    { sub: usuario.id, email: usuario.email, empresaId: usuario.empresaId },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN },
   );
@@ -51,15 +51,4 @@ export async function autenticar(req, _res, proximo) {
   } catch (erro) {
     proximo(erro);
   }
-}
-
-/// Restringe a rota a determinados papéis.
-export function exigirPapel(...papeis) {
-  return (req, _res, proximo) => {
-    if (!req.usuario) return proximo(erroNaoAutenticado());
-    if (!papeis.includes(req.usuario.papel)) {
-      return proximo(erroSemPermissao(`Ação restrita a: ${papeis.join(', ')}`));
-    }
-    proximo();
-  };
 }
