@@ -9,6 +9,7 @@ import { useTema } from '../lib/tema.jsx';
 const MOTIVOS = {
   expirada: 'Sua sessão expirou por tempo de inatividade. Entre novamente para continuar.',
   invalida: 'Sua sessão não é mais válida. Entre novamente para continuar.',
+  assinatura_inativa: 'Sua assinatura está com pagamento pendente ou foi cancelada. Regularize para continuar usando.',
 };
 
 /**

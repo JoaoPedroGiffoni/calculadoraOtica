@@ -202,15 +202,28 @@ para um deploy não devolver acesso a uma senha antiga sem querer.
 [`web/src/App.jsx`](web/src/App.jsx).
 
 Fluxo: alguém clica em "Assinar" na página de venda → `GET
-/api/v1/pagamentos/assinar` cria uma assinatura recorrente ("preapproval") no
-Mercado Pago e redireciona pro checkout hospedado deles → a pessoa paga e
-volta pra `/login?assinatura=pendente` (banner explicando que o acesso chega
-por e-mail) → o Mercado Pago chama `POST /api/v1/pagamentos/webhook` quando a
-assinatura é aprovada → o webhook cria a `Empresa` + `Usuario` (um só — sem
-subconta, ver acima) com senha aleatória e manda e-mail de acesso via Resend.
-Ver [`src/lib/mercadoPago.js`](src/lib/mercadoPago.js),
+/api/v1/pagamentos/assinar` devolve o link de checkout de um **plano** de
+assinatura recorrente ("preapproval_plan") no Mercado Pago e redireciona pro
+checkout hospedado deles (o plano é criado uma vez, na primeira chamada, e
+cacheado em memória — o preço é fixo, não faz sentido um plano por clique) →
+a pessoa paga e se identifica só ali, no checkout → volta pra
+`/login?assinatura=pendente` (banner explicando que o acesso chega por
+e-mail) → o Mercado Pago chama `POST /api/v1/pagamentos/webhook` quando a
+assinatura (agora uma "preapproval" ligada ao plano) é aprovada → o webhook
+cria a `Empresa` + `Usuario` (um só — sem subconta, ver acima) com senha
+aleatória e manda e-mail de acesso via Resend. Ver
+[`src/lib/mercadoPago.js`](src/lib/mercadoPago.js),
 [`src/lib/email.js`](src/lib/email.js) e
 [`src/modules/pagamentos/pagamentos.rotas.js`](src/modules/pagamentos/pagamentos.rotas.js).
+
+**Corte de acesso por inadimplência**: quando o Mercado Pago avisa que a
+assinatura pausou (falha de cobrança) ou foi cancelada, o webhook marca a
+`Empresa` como `inadimplente`/`cancelado`. Esse status bloqueia login (na
+hora) e também qualquer requisição autenticada em andamento — a
+verificação roda a cada request (`src/middleware/autenticacao.js`), não só
+no login, então quem já estava logado perde o acesso na próxima chamada à
+API, sem esperar o token expirar (até 7 dias). Ver
+`erroAssinaturaInativa` em [`src/lib/erros.js`](src/lib/erros.js).
 
 Escolhas:
 

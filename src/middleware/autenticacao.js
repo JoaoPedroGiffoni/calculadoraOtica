@@ -4,7 +4,9 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { logger } from '../lib/logger.js';
 import { repositorioUsuarios } from '../lib/repositorioUsuarios.js';
-import { erroNaoAutenticado, erroSessaoExpirada } from '../lib/erros.js';
+import { erroNaoAutenticado, erroSessaoExpirada, erroAssinaturaInativa } from '../lib/erros.js';
+
+const STATUS_BLOQUEIA_ACESSO = new Set(['inadimplente', 'cancelado']);
 
 /// Assina o token e devolve junto a data de expiração. O front usa esse
 /// carimbo para avisar o usuário ANTES de a sessão cair.
@@ -44,6 +46,12 @@ export async function autenticar(req, _res, proximo) {
     // para de valer na hora, sem esperar expirar.
     const usuario = await repositorioUsuarios.buscarPorId(payload.sub);
     if (!usuario || !usuario.ativo) throw erroNaoAutenticado('Usuário inativo ou inexistente');
+
+    // Mesma lógica pro lado da assinatura: se ficou inadimplente ou foi
+    // cancelada enquanto a sessão estava aberta, corta o acesso na próxima
+    // requisição — não espera o token expirar (até 7 dias).
+    const empresa = await repositorioUsuarios.buscarEmpresa(usuario.empresaId);
+    if (empresa && STATUS_BLOQUEIA_ACESSO.has(empresa.status)) throw erroAssinaturaInativa(empresa.status);
 
     const { senhaHash: _senhaHash, ...usuarioSemSenha } = usuario;
     req.usuario = usuarioSemSenha;

@@ -46,6 +46,8 @@ export function ProvedorAuth({ children }) {
         limparToken();
         if (!cancelado && e?.status === 401) {
           setMotivoSaida(e.codigo === 'SESSAO_EXPIRADA' ? 'expirada' : 'invalida');
+        } else if (!cancelado && e?.status === 403 && e.codigo === 'ASSINATURA_INATIVA') {
+          setMotivoSaida('assinatura_inativa');
         }
       } finally {
         if (!cancelado) setCarregando(false);
