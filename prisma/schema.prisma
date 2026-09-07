@@ -50,6 +50,11 @@ model Empresa {
   /// livre no repositório mock (ver src/lib/repositorioConfiguracoes.js) e
   /// não há consulta que precise indexar campo por campo aqui dentro.
   configuracaoCustos Json?
+  /// Id da assinatura (`preapproval`) no Mercado Pago que criou esta conta —
+  /// é por ele que o webhook reconhece "essa cobrança é desta empresa" nos
+  /// eventos seguintes (pagamento aprovado, atrasado, cancelado). Nulo para
+  /// contas criadas na mão (seed, convite manual).
+  mercadoPagoAssinaturaId String? @unique
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 

@@ -7,6 +7,7 @@ import { versao } from '../lib/versao.js';
 import { env } from '../config/env.js';
 import { rotasAuth } from '../modules/auth/auth.rotas.js';
 import { rotasConfiguracoes } from '../modules/configuracoes/configuracoes.rotas.js';
+import { rotasPagamentos } from '../modules/pagamentos/pagamentos.rotas.js';
 
 export const rotasApi = Router();
 
@@ -31,6 +32,7 @@ rotasApi.get('/saude', async (_req, res) => {
 
 // --- Públicas, mas dependem do banco (login precisa consultar usuário) ---
 rotasApi.use('/auth', exigirBancoPronto, rotasAuth);
+rotasApi.use(exigirBancoPronto, rotasPagamentos);
 
 // --- A partir daqui, tudo autenticado ---
 rotasApi.use(exigirBancoPronto, autenticar);

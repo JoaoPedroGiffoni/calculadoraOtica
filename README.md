@@ -62,6 +62,8 @@ acesso vendido, ponto — ver comentário no topo de `dadosMock.js`.
 | `GET /api/v1/auth/eu` | Quem sou eu, com dados da conta |
 | `GET /api/v1/configuracoes/custos` | Custos padrão da conta (pré-preenche a calculadora) |
 | `PUT /api/v1/configuracoes/custos` | Atualiza os custos padrão |
+| `GET /api/v1/pagamentos/assinar` | Botão "Assinar" da página de venda → redireciona pro checkout do Mercado Pago |
+| `POST /api/v1/pagamentos/webhook` | Notificação do Mercado Pago → cria a conta e manda o e-mail de acesso |
 
 Em `AUTH_MODO=banco`, toda rota acima (exceto `/saude`) responde **503**
 enquanto o banco ainda está sendo preparado no boot — ver "Ordem do boot",
@@ -195,24 +197,54 @@ para um deploy não devolver acesso a uma senha antiga sem querer.
 
 ### Fase 3 — venda e pagamento
 
-Fluxo: cliente compra → webhook do meio de pagamento cria a `Empresa` e o
-`Usuario` (um só — sem subconta, ver acima) → e-mail com o login sai
-automático.
+`/` é a página de venda (pública); `/login` é o produto em si — ver
+[`web/src/paginas/Venda.jsx`](web/src/paginas/Venda.jsx) e
+[`web/src/App.jsx`](web/src/App.jsx).
 
-Meio de pagamento ainda em aberto — comparativo levantado nesta conversa:
+Fluxo: alguém clica em "Assinar" na página de venda → `GET
+/api/v1/pagamentos/assinar` cria uma assinatura recorrente ("preapproval") no
+Mercado Pago e redireciona pro checkout hospedado deles → a pessoa paga e
+volta pra `/login?assinatura=pendente` (banner explicando que o acesso chega
+por e-mail) → o Mercado Pago chama `POST /api/v1/pagamentos/webhook` quando a
+assinatura é aprovada → o webhook cria a `Empresa` + `Usuario` (um só — sem
+subconta, ver acima) com senha aleatória e manda e-mail de acesso via Resend.
+Ver [`src/lib/mercadoPago.js`](src/lib/mercadoPago.js),
+[`src/lib/email.js`](src/lib/email.js) e
+[`src/modules/pagamentos/pagamentos.rotas.js`](src/modules/pagamentos/pagamentos.rotas.js).
 
-- **Mercado Pago:** Pix ~0,99%, cartão ~3,0% a ~5,0% conforme prazo de
-  recebimento, sem mensalidade. Assinatura recorrente cobre cartão, Pix e
-  boleto com nova tentativa automática em caso de falha.
-- **Asaas:** Pix R$ 1,99 fixo por cobrança (100 primeiras grátis/mês), boleto
-  R$ 3,49, cartão 2,99% + R$ 0,49 (mais 1,99% em parcelado/assinatura), sem
-  mensalidade. Cobrança recorrente e régua de inadimplência nativas — se
-  encaixa bem no modelo `trial → ativo → inadimplente → cancelado` já
-  desenhado no `StatusEmpresa` do schema.
+Escolhas:
 
-Ambos sem mensalidade fixa (só taxa por cobrança); vale checar os valores
-atuais direto no site de cada um antes de decidir — taxa de meio de
-pagamento muda com frequência.
+- **Mercado Pago** (assinatura/"preapproval" recorrente) — suporta conta
+  PJ/CNPJ, e é onde a GMT Academy já tem conta. `MERCADOPAGO_ACCESS_TOKEN`
+  começando com `TEST-` usa o checkout de sandbox; `APP_USR-` é produção —
+  confundir os dois é o erro mais comum.
+- **Resend** para o e-mail de acesso — chamada direta na API REST deles
+  (sem SDK). `EMAIL_REMETENTE` é **específico deste produto**
+  (`calculadora@gmtacademy.com.br`): como vão existir outros produtos sob a
+  mesma empresa, cada um manda do seu próprio remetente, nunca de um
+  endereço genérico compartilhado — e o domínio do remetente precisa estar
+  verificado (SPF/DKIM) no Resend.
+- **Checkout por redirect**, não embutido — mais simples de manter e é o
+  Mercado Pago quem lida com a tela de pagamento.
+
+Configurar (ver `.env.example` para os comentários completos de cada
+variável): `URL_BASE`, `MERCADOPAGO_ACCESS_TOKEN`,
+`MERCADOPAGO_WEBHOOK_SECRET`, `PRECO_ASSINATURA`, `RESEND_API_KEY`,
+`EMAIL_REMETENTE`. Ou as seis estão preenchidas, ou nenhuma — pela metade,
+`/pagamentos/assinar` responde erro em vez de meio-funcionar (ver
+`pagamentoConfigurado`/`emailConfigurado` em `src/config/env.js`).
+
+O `MERCADOPAGO_WEBHOOK_SECRET` só existe depois de cadastrar a URL do
+webhook (`<URL_BASE>/api/v1/pagamentos/webhook`) no painel do Mercado Pago
+(Suas integrações → a aplicação → Webhooks) — o segredo aparece na tela
+depois de salvar essa URL.
+
+**Não testado contra a API de verdade nesta sessão de desenvolvimento**: o
+ambiente onde este código foi escrito não alcança `api.mercadopago.com` nem
+`api.resend.com` (mesma restrição de rede que impede testar o MySQL daqui —
+ver "Banco de dados"). O código segue a documentação oficial de cada API à
+risca (formato do `preapproval`, verificação HMAC do webhook em
+`x-signature`), mas a confirmação real só acontece depois do deploy.
 
 ### Fase 4 — deploy na Hostinger
 
@@ -244,6 +276,8 @@ src/
     estado.js                  prontidão do banco, para o 503 explicado
     diagnostico.js             traduz erro de conexão em causa provável (host? senha? IPv6?)
     rede.js                    prefere IPv4 na resolução de nomes
+    mercadoPago.js             cria assinatura, consulta status, confere assinatura HMAC do webhook
+    email.js                   envia o e-mail de acesso via Resend
     erros.js, logger.js, versao.js
   middleware/
     autenticacao.js    JWT
@@ -253,13 +287,15 @@ src/
   modules/
     auth/               login, renovar, eu
     configuracoes/       custos padrão (GET/PUT /configuracoes/custos)
+    pagamentos/           checkout do Mercado Pago + webhook que provisiona a conta
   routes/index.js      /api/v1
 
 web/src/
-  App.jsx                       roteador; sem usuário, o login ocupa a tela
+  App.jsx                       roteador: "/" é a venda, "/login" é o produto
   lib/api.js                    cliente HTTP, token e perda de sessão
   lib/autenticacao.jsx          contexto de auth
   lib/calculo.js                toda a conta da margem — a lógica de negócio mora aqui, não no servidor
+  paginas/Venda.jsx              página de venda, pública ("/")
   paginas/Login.jsx
   paginas/Calculadora.jsx       a ferramenta inteira: preço de venda + custos → margem, sem salvar nada
   componentes/ConfiguracaoCustosModal.jsx  edita os custos padrão

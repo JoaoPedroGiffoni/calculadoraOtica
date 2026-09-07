@@ -42,6 +42,30 @@ const esquema = z.object({
   WEB_DIST_DIR: z.string().default('./web/dist'),
 
   TZ: z.string().default('America/Sao_Paulo'),
+
+  // --- Fase 3: venda de acesso ---
+  // URL pública desta aplicação, sem barra no fim — usada para montar o
+  // back_url que o Mercado Pago chama depois do checkout. Em produção é o
+  // domínio de verdade; em desenvolvimento, o preview/túnel que estiver
+  // ativo no momento.
+  URL_BASE: z.string().optional(),
+
+  // Token de servidor da aplicação no Mercado Pago (TEST-... em teste,
+  // APP_USR-... em produção) — ver painel de Credenciais.
+  MERCADOPAGO_ACCESS_TOKEN: z.string().optional(),
+  // Segredo mostrado ao configurar a URL de webhook no painel do Mercado
+  // Pago — confere que a notificação realmente veio de lá (ver
+  // src/lib/mercadoPago.js#verificarAssinaturaWebhook).
+  MERCADOPAGO_WEBHOOK_SECRET: z.string().optional(),
+  // Valor mensal da assinatura, em reais (ex.: 49.00).
+  PRECO_ASSINATURA: z.coerce.number().positive().optional(),
+
+  // E-mail transacional (Resend) — o acesso de cada conta nova sai por
+  // aqui. EMAIL_REMETENTE é específico deste produto, de propósito: cada
+  // produto da empresa manda do seu próprio remetente, não de um endereço
+  // genérico compartilhado.
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_REMETENTE: z.string().optional(),
 });
 
 const resultado = esquema.safeParse(process.env);
@@ -80,3 +104,23 @@ if (env.JWT_SECRET.length < 32) {
 export const origensCors = env.CORS_ORIGINS.split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+
+// Venda de acesso: ou está tudo preenchido, ou nada — um conjunto pela
+// metade falha de um jeito confuso (ex.: gera link de checkout mas nunca
+// consegue confirmar o webhook). Sem nenhuma delas a aplicação sobe normal,
+// só sem o botão de assinar funcionando de verdade.
+export const pagamentoConfigurado = Boolean(
+  env.MERCADOPAGO_ACCESS_TOKEN && env.MERCADOPAGO_WEBHOOK_SECRET && env.PRECO_ASSINATURA && env.URL_BASE,
+);
+const pagamentoParcial =
+  !pagamentoConfigurado &&
+  Boolean(env.MERCADOPAGO_ACCESS_TOKEN || env.MERCADOPAGO_WEBHOOK_SECRET || env.PRECO_ASSINATURA || env.URL_BASE);
+if (pagamentoParcial) {
+  console.warn(
+    '[config] Configuração de pagamento incompleta — preencha MERCADOPAGO_ACCESS_TOKEN, ' +
+      'MERCADOPAGO_WEBHOOK_SECRET, PRECO_ASSINATURA e URL_BASE juntas. Até lá, /pagamentos/assinar ' +
+      'responde erro em vez de meio-funcionar.',
+  );
+}
+
+export const emailConfigurado = Boolean(env.RESEND_API_KEY && env.EMAIL_REMETENTE);
