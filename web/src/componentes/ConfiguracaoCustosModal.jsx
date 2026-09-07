@@ -46,7 +46,7 @@ export default function ConfiguracaoCustosModal({ config, aoFechar, aoSalvar }) 
           </button>
         </div>
         <p className="-mt-3 text-xs text-slate-500 dark:text-slate-400">
-          Pré-preenche a seção de margem em todo orçamento novo. Cada venda ainda pode ajustar na hora.
+          Pré-preenche a calculadora a cada cálculo novo. Cada venda ainda pode ajustar na hora.
         </p>
 
         <div className="grid grid-cols-2 gap-3">
@@ -59,7 +59,12 @@ export default function ConfiguracaoCustosModal({ config, aoFechar, aoSalvar }) 
         </div>
 
         <div>
-          <p className="rotulo mb-2">Taxa da maquininha por parcela (%)</p>
+          <p className="rotulo mb-0.5">Taxa da maquininha por parcela (%)</p>
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+            Valor de referência (taxa comum de mercado para crédito à vista/parcelado) — não é a taxa real da sua
+            maquininha, é só um ponto de partida. Cada operadora e cada negociação tem a sua; ajuste para o valor
+            do seu extrato.
+          </p>
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
             {local.taxaMaquininhaPorParcela.map((p, i) => (
               <div key={p.parcelas}>

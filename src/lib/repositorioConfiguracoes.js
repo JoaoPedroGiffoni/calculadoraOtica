@@ -3,10 +3,23 @@
 // repositórios (ver dadosMock.js) — vira coluna JSON em Empresa quando a
 // Fase 2 plugar o banco.
 //
-// Tudo nasce zerado de propósito: taxa de maquininha, CMV de lente e comissão
+// CMV de lente, comissão, garantia e embalagem nascem zerados de propósito:
 // variam demais entre óticas para vir com valor "de fábrica" — inventar um
 // número pareceria orientação de negócio que não é.
 const porEmpresa = new Map();
+
+// Taxa de maquininha por parcela NÃO nasce zerada: ao contrário do resto do
+// cadastro, é um número público — taxa de cartão de crédito parcelado de uma
+// maquininha comum, uma referência real de mercado (ficha "Taxas e Prazos"
+// de um app de maquininha, crédito à vista/parcelado, setembro de 2026).
+// Ainda assim é só ponto de partida: cada operadora/negociação tem a sua
+// própria taxa, e o valor certo é o que o ADMIN vê no extrato da própria
+// maquininha — por isso o aviso "valor de referência" no modal (ver
+// web/src/componentes/ConfiguracaoCustosModal.jsx) e por isso continua 100%
+// editável.
+const TAXA_MAQUININHA_REFERENCIA = [
+  3.69, 4.99, 5.99, 6.89, 7.69, 8.09, 9.09, 9.19, 9.49, 9.49, 10.47, 10.49,
+];
 
 function padrao() {
   return {
@@ -16,8 +29,9 @@ function padrao() {
     cmvLenteSimples: 0,
     cmvLentePercentual: 0,
     // Taxa da maquininha por número de parcelas — cada parcela tem sua
-    // própria taxa (parcelamento custa mais que à vista).
-    taxaMaquininhaPorParcela: Array.from({ length: 12 }, (_, i) => ({ parcelas: i + 1, percentual: 0 })),
+    // própria taxa (parcelamento custa mais que à vista). Ver
+    // TAXA_MAQUININHA_REFERENCIA acima sobre a origem dos valores.
+    taxaMaquininhaPorParcela: TAXA_MAQUININHA_REFERENCIA.map((percentual, i) => ({ parcelas: i + 1, percentual })),
     custoExameVista: 0,
     custoGarantia: 0,
     custoEmbalagem: 0,
