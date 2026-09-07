@@ -1,11 +1,11 @@
 // ============================================================================
 // CALCULADORA ÓTICA
 // ----------------------------------------------------------------------------
-// FASE 2 — ainda não conectado no runtime (AUTH_MODO=mock por padrão, ver
-// src/lib/dadosMock.js). Este schema existe para o dia em que banco e
-// pagamento entrarem: mesma receita do AtendimentoLocaPronto (MySQL da
-// própria Hostinger, engineType "client" + driverAdapters, sem motor Rust —
-// ver o schema.prisma daquele projeto para o porquê completo).
+// FASE 2 — implementado, ligado com AUTH_MODO=banco (padrão continua "mock",
+// ver src/lib/dadosMock.js, para quem só quer testar sem banco). Mesma
+// receita do AtendimentoLocaPronto: MySQL da própria Hostinger, engineType
+// "client" + driver adapter, sem motor Rust — ver o schema.prisma daquele
+// projeto para o porquê completo.
 //
 // Multi-tenant, mas sem hierarquia: cada acesso vendido é uma Empresa com
 // exatamente um Usuario — não há convite de equipe nem papel dentro da
@@ -16,9 +16,11 @@
 // ============================================================================
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
-  engineType      = "client"
+  provider   = "prisma-client-js"
+  // driverAdapters não é mais preview feature nesta versão do Prisma — só
+  // "client" precisa ser dito explicitamente (sem isso, o binário Rust
+  // continua sendo baixado mesmo com adapter configurado).
+  engineType = "client"
 }
 
 datasource db {
