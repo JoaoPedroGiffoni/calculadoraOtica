@@ -1,24 +1,35 @@
 // Integração com a API de Assinaturas do Mercado Pago.
 //
 // Fluxo: o botão "Assinar" na página de venda chama GET /pagamentos/assinar
-// (ver pagamentos.rotas.js), que cria uma "preapproval" aqui e redireciona
-// para o checkout hospedado do Mercado Pago. Quem preencher o pagamento lá
-// vira uma assinatura de verdade, e o Mercado Pago avisa por webhook — é
-// nesse momento que a conta (Empresa + Usuario) é criada.
+// (ver pagamentos.rotas.js), que devolve o link de checkout de um PLANO de
+// assinatura e redireciona pra lá. Quem completar o pagamento lá vira uma
+// assinatura de verdade (uma "preapproval" ligada ao plano), e o Mercado
+// Pago avisa por webhook — é nesse momento que a conta (Empresa + Usuario)
+// é criada.
 //
-// NÃO TESTADO CONTRA A API DE VERDADE: esta sessão não alcança
-// api.mercadopago.com (mesma restrição de rede que bloqueou o MySQL) — só dá
-// para confirmar depois de rodar em produção/preview. Escrito seguindo a
-// documentação oficial da API de Assinaturas (preapproval) à risca; qualquer
-// divergência de contrato só aparece no teste real.
+// Por que plano, e não "preapproval" direto: a tentativa inicial criava uma
+// preapproval diretamente (POST /preapproval, sem payer_email), na
+// expectativa — desta vez SEM confirmação contra a API de verdade, só pela
+// doc — de que isso geraria um link genérico. Testado em produção, a API
+// recusou com "payer_email is required": criar uma preapproval sem plano
+// exige já saber quem é o pagador, não serve para um link público de venda.
+// O jeito certo é criar um PLANO (POST /preapproval_plan, sem payer_email
+// nenhum) — aí sim o Mercado Pago devolve um `init_point` aberto para
+// qualquer pessoa se identificar e pagar. Confirmado contra a API real.
+//
+// Como o preço é fixo (R$49/mês, um plano só), o plano é criado uma vez
+// e cacheado em memória do processo — evita recriar um plano novo a cada
+// clique. Reinícios do processo criam outro (efeito colateral aceitável:
+// planos antigos ficam órfãos no painel do Mercado Pago, sem custo).
 import crypto from 'node:crypto';
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 
 const BASE = 'https://api.mercadopago.com';
 
-/// Token de teste (TEST-...) usa sandbox_init_point; produção (APP_USR-...)
-/// usa init_point. Confundir os dois é o erro mais comum de quem integra.
+/// Token de teste (TEST-...) usa sandbox_init_point quando existir; produção
+/// (APP_USR-...) usa init_point. Confundir os dois é o erro mais comum de
+/// quem integra.
 function ehTokenDeTeste() {
   return (env.MERCADOPAGO_ACCESS_TOKEN ?? '').startsWith('TEST-');
 }
@@ -44,16 +55,18 @@ async function chamar(caminho, opcoes = {}) {
   return dado;
 }
 
+let planoCache = null;
+
 /**
- * Cria uma assinatura "em aberto" (sem e-mail de pagador ainda — quem entra
- * no checkout se identifica lá) e devolve o link de checkout.
- *
- * `status: "pending"` sem `payer_email` é o que faz o Mercado Pago devolver
- * um `init_point` genérico, aberto para qualquer pessoa completar — sem
- * isso, a API exige amarrar a um pagador específico de antemão.
+ * Devolve o link de checkout do plano de assinatura — cria o plano no
+ * Mercado Pago na primeira chamada (POST /preapproval_plan, sem
+ * payer_email: é isso que torna o link genérico, aberto pra qualquer
+ * pessoa) e reaproveita o mesmo link nas chamadas seguintes.
  */
 export async function criarAssinatura() {
-  const preapproval = await chamar('/preapproval', {
+  if (planoCache) return planoCache;
+
+  const plano = await chamar('/preapproval_plan', {
     method: 'POST',
     body: JSON.stringify({
       reason: 'Calculadora Ótica — assinatura mensal',
@@ -64,12 +77,14 @@ export async function criarAssinatura() {
         currency_id: 'BRL',
       },
       back_url: `${env.URL_BASE}/login?assinatura=pendente`,
-      status: 'pending',
     }),
   });
 
-  const linkCheckout = ehTokenDeTeste() ? preapproval.sandbox_init_point : preapproval.init_point;
-  return { id: preapproval.id, linkCheckout };
+  const linkCheckout = (ehTokenDeTeste() && plano.sandbox_init_point) || plano.init_point;
+  logger.info(`Plano de assinatura criado no Mercado Pago: ${plano.id}`);
+
+  planoCache = { id: plano.id, linkCheckout };
+  return planoCache;
 }
 
 /// Detalhe de uma assinatura — usado pelo webhook para saber o status atual
