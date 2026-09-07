@@ -2,7 +2,7 @@
 // conta nova), via fetch direto na API REST deles, sem SDK: é uma chamada
 // só, não vale a dependência extra.
 //
-// EMAIL_REMETENTE é específico DESTE produto (calculadora@gmtacademy.com.br),
+// EMAIL_REMETENTE é específico DESTE produto (acesso@calculadora.gmtacademy.com.br),
 // não um endereço genérico da empresa — cada produto da GMT Academy manda do
 // seu próprio remetente. O domínio do remetente precisa estar verificado no
 // Resend (registro SPF/DKIM), senão a API recusa o envio.
