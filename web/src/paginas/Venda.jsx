@@ -32,9 +32,26 @@ const RECURSOS = [
   },
 ];
 
-/// Link de checkout: um <a href> puro, de propósito (GET redireciona pro
-/// Mercado Pago) — não tem cadastro nem JavaScript nenhum antes disso.
+/// Link de checkout: precisa ser um <a href> de verdade, não <Link> do
+/// react-router — /api/v1/... é rota do backend, não da SPA, e o <Link>
+/// intercepta o clique pra navegação client-side (cai no fallback "*" e
+/// volta pra "/" sem nunca chamar a API).
 const LINK_ASSINATURA = '/api/v1/pagamentos/assinar';
+
+function BotaoAssinar({ usuario, className }) {
+  if (usuario) {
+    return (
+      <Link to="/login" className={className}>
+        Ir para a calculadora
+      </Link>
+    );
+  }
+  return (
+    <a href={LINK_ASSINATURA} className={className}>
+      Assinar por R$ 49/mês
+    </a>
+  );
+}
 
 export default function Venda() {
   const { usuario } = useAuth();
@@ -60,9 +77,7 @@ export default function Venda() {
                 Entrar
               </Link>
             )}
-            <Link to={usuario ? '/login' : LINK_ASSINATURA} className="botao-primario text-sm">
-              {usuario ? 'Ir para a calculadora' : 'Assinar por R$ 49/mês'}
-            </Link>
+            <BotaoAssinar usuario={usuario} className="botao-primario text-sm" />
           </div>
         </div>
       </header>
@@ -86,9 +101,7 @@ export default function Venda() {
               vê na hora se aquela venda vale a pena — sem planilha, sem chute.
             </p>
             <div className="mt-8 flex justify-center">
-              <Link to={usuario ? '/login' : LINK_ASSINATURA} className="botao-primario px-6 py-3 text-base">
-                {usuario ? 'Ir para a calculadora' : 'Assinar por R$ 49/mês'}
-              </Link>
+              <BotaoAssinar usuario={usuario} className="botao-primario px-6 py-3 text-base" />
             </div>
             <p className="mt-4 text-sm text-slate-400 dark:text-slate-500">
               Já é cliente? <Link to="/login" className="underline hover:text-slate-600 dark:hover:text-slate-300">Entre</Link> com o e-mail e senha que você recebeu.
@@ -142,9 +155,7 @@ export default function Venda() {
             R$ 49/mês, cancele quando quiser. O acesso chega por e-mail assim que o pagamento é confirmado.
           </p>
           <div className="mt-6">
-            <Link to={usuario ? '/login' : LINK_ASSINATURA} className="botao-primario px-6 py-3 text-base">
-              {usuario ? 'Ir para a calculadora' : 'Assinar por R$ 49/mês'}
-            </Link>
+            <BotaoAssinar usuario={usuario} className="botao-primario px-6 py-3 text-base" />
           </div>
         </section>
       </main>
