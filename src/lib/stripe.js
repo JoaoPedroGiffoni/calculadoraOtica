@@ -53,6 +53,10 @@ export async function criarAssinatura() {
   const sessao = await cliente().checkout.sessions.create({
     mode: 'subscription',
     line_items: [{ price: precoId, quantity: 1 }],
+    // Assinatura recorrente exige cobrança automática mês a mês — boleto e
+    // Pix não permitem isso, então restringimos o checkout a cartão de
+    // crédito (mesma decisão que já existia com o Mercado Pago).
+    payment_method_types: ['card'],
     success_url: `${env.URL_BASE}/login?assinatura=pendente`,
     cancel_url: `${env.URL_BASE}/login?assinatura=cancelada`,
   });
