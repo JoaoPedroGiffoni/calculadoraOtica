@@ -76,6 +76,11 @@ export async function criarAssinatura() {
         transaction_amount: env.PRECO_ASSINATURA,
         currency_id: 'BRL',
       },
+      // Assinatura recorrente exige cobrança automática mês a mês — boleto
+      // não permite isso, então restringimos o checkout a cartão de crédito.
+      payment_methods_allowed: {
+        payment_types: [{ id: 'credit_card' }],
+      },
       back_url: `${env.URL_BASE}/login?assinatura=pendente`,
     }),
   });
