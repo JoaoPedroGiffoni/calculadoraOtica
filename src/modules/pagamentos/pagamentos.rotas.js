@@ -1,11 +1,11 @@
 // Venda de acesso: link de checkout + webhook que provisiona a conta.
 // As duas rotas são PÚBLICAS de propósito — /assinar é o botão da página de
 // venda (ninguém está logado ainda), e /webhook é chamado pelo próprio
-// Mercado Pago (autenticado pela assinatura HMAC, não por JWT).
+// Stripe (autenticado pela assinatura do header stripe-signature, não por JWT).
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { env, pagamentoConfigurado } from '../../config/env.js';
-import { criarAssinatura, buscarAssinatura, verificarAssinaturaWebhook } from '../../lib/mercadoPago.js';
+import { criarAssinatura, buscarAssinatura, construirEventoWebhook } from '../../lib/stripe.js';
 import { repositorioUsuarios } from '../../lib/repositorioUsuarios.js';
 import { enviarEmailAcesso, enviarAlertaFalhaEmail } from '../../lib/email.js';
 import { gerarSenha } from '../../lib/senha.js';
@@ -15,7 +15,7 @@ import { erroRequisicao } from '../../lib/erros.js';
 
 export const rotasPagamentos = Router();
 
-/// Cria a assinatura no Mercado Pago e redireciona para o checkout
+/// Cria a Checkout Session no Stripe e redireciona para o checkout
 /// hospedado. GET (não POST) de propósito: é literalmente um link, pra
 /// poder ser um <a href> simples na página de venda, sem JavaScript.
 rotasPagamentos.get(
@@ -26,52 +26,58 @@ rotasPagamentos.get(
     }
 
     const { linkCheckout } = await criarAssinatura();
-    res.redirect(302, linkCheckout);
+    res.redirect(303, linkCheckout);
   }),
 );
 
-/// Notificação do Mercado Pago. Responde 200 rápido sempre que a assinatura
-/// bate — um 4xx/5xx faz o Mercado Pago reenviar (com backoff), então só
-/// devolvemos erro quando é mesmo o caso de tentar de novo depois.
+/// Notificação do Stripe. Responde 200 rápido sempre que o evento bate — um
+/// 4xx/5xx faz o Stripe reenviar (com backoff), então só devolvemos erro
+/// quando é mesmo o caso de tentar de novo depois.
 rotasPagamentos.post(
   '/pagamentos/webhook',
   rota(async (req, res) => {
     if (!pagamentoConfigurado) {
-      logger.warn('Webhook do Mercado Pago recebido, mas pagamento não está configurado — ignorando.');
+      logger.warn('Webhook do Stripe recebido, mas pagamento não está configurado — ignorando.');
       return res.status(200).json({ recebido: true });
     }
 
-    if (!verificarAssinaturaWebhook(req)) {
-      logger.warn('Webhook do Mercado Pago com assinatura inválida — descartado.');
+    let evento;
+    try {
+      evento = construirEventoWebhook(req);
+    } catch (erro) {
+      logger.warn(`Webhook do Stripe com assinatura inválida — descartado. ${erro?.message}`);
       return res.status(401).json({ erro: 'assinatura inválida' });
     }
 
-    const tipo = req.query?.type ?? req.body?.type;
-    const dataId = req.query?.['data.id'] ?? req.body?.data?.id;
-
-    // Só nos importa o ciclo de vida da assinatura em si (autorizada, pausada,
-    // cancelada) — cada cobrança recorrente individual (subscription_
-    // authorized_payment) não muda o status da conta, então é só confirmar
-    // recebimento sem processar.
-    if (tipo !== 'subscription_preapproval' && tipo !== 'preapproval') {
+    // Só nos importa o ciclo de vida da assinatura em si (criada/paga,
+    // atrasada, cancelada) — a fatura de cada cobrança recorrente individual
+    // não muda o status da conta além disso.
+    let assinaturaId;
+    if (evento.type === 'checkout.session.completed') {
+      const sessao = evento.data.object;
+      if (sessao.mode !== 'subscription') return res.status(200).json({ recebido: true });
+      assinaturaId = sessao.subscription;
+    } else if (evento.type === 'customer.subscription.updated' || evento.type === 'customer.subscription.deleted') {
+      assinaturaId = evento.data.object.id;
+    } else {
       return res.status(200).json({ recebido: true });
     }
 
-    const assinatura = await buscarAssinatura(dataId);
-    logger.info(`Webhook Mercado Pago: assinatura ${dataId} está "${assinatura.status}"`);
+    const assinatura = await buscarAssinatura(assinaturaId);
+    logger.info(`Webhook Stripe: assinatura ${assinaturaId} está "${assinatura.status}"`);
 
-    if (assinatura.status === 'authorized') {
-      const existente = await repositorioUsuarios.buscarEmpresaPorAssinatura(dataId);
+    if (assinatura.status === 'active' || assinatura.status === 'trialing') {
+      const existente = await repositorioUsuarios.buscarEmpresaPorAssinatura(assinaturaId);
       if (existente) {
-        // Reenvio do mesmo evento (o Mercado Pago reenvia se não confirmarmos
-        // a tempo) — idempotente, não cria de novo.
-        await repositorioUsuarios.atualizarStatusEmpresaPorAssinatura(dataId, 'ativo');
+        // Reenvio do mesmo evento (o Stripe reenvia se não confirmarmos a
+        // tempo) — idempotente, não cria de novo.
+        await repositorioUsuarios.atualizarStatusEmpresaPorAssinatura(assinaturaId, 'ativo');
         return res.status(200).json({ recebido: true });
       }
 
-      const email = (assinatura.payer_email ?? '').trim().toLowerCase();
+      const email = (assinatura.customer?.email ?? '').trim().toLowerCase();
       if (!email) {
-        logger.error(`Assinatura ${dataId} autorizada sem payer_email — não dá para provisionar a conta.`);
+        logger.error(`Assinatura ${assinaturaId} ativa sem e-mail do cliente — não dá para provisionar a conta.`);
         return res.status(200).json({ recebido: true });
       }
 
@@ -80,26 +86,26 @@ rotasPagamentos.post(
         empresaNome: 'Minha Ótica',
         email,
         senhaHash: await bcrypt.hash(senha, 10),
-        mercadoPagoAssinaturaId: dataId,
+        assinaturaId,
       });
 
-      logger.info(`Conta criada a partir da assinatura ${dataId}: ${usuario.email} (empresa ${empresa.id})`);
+      logger.info(`Conta criada a partir da assinatura ${assinaturaId}: ${usuario.email} (empresa ${empresa.id})`);
 
       try {
         await enviarEmailAcesso({ para: email, nomeEmpresa: empresa.nome, senha, urlBase: env.URL_BASE });
       } catch (erro) {
         // A conta já existe e já é utilizável — a pessoa só não recebeu o
-        // e-mail. Não derruba o webhook por isso (o Mercado Pago reenviaria
-        // e tentaríamos criar a conta de novo, sem necessidade). Avisa o
-        // dono do produto (se EMAIL_ALERTA estiver configurado) e conta com
-        // a pessoa usar "esqueci minha senha" em /login — ver auth.rotas.js.
+        // e-mail. Não derruba o webhook por isso (o Stripe reenviaria e
+        // tentaríamos criar a conta de novo, sem necessidade). Avisa o dono
+        // do produto (se EMAIL_ALERTA estiver configurado) e conta com a
+        // pessoa usar "esqueci minha senha" em /login — ver auth.rotas.js.
         logger.error(`Conta ${usuario.email} criada, mas falhou o envio do e-mail de acesso.`, erro?.message);
         await enviarAlertaFalhaEmail({ emailCliente: usuario.email, nomeEmpresa: empresa.nome, motivo: erro?.message ?? 'desconhecido' });
       }
-    } else if (assinatura.status === 'paused') {
-      await repositorioUsuarios.atualizarStatusEmpresaPorAssinatura(dataId, 'inadimplente');
-    } else if (assinatura.status === 'cancelled') {
-      await repositorioUsuarios.atualizarStatusEmpresaPorAssinatura(dataId, 'cancelado');
+    } else if (assinatura.status === 'past_due' || assinatura.status === 'unpaid') {
+      await repositorioUsuarios.atualizarStatusEmpresaPorAssinatura(assinaturaId, 'inadimplente');
+    } else if (assinatura.status === 'canceled') {
+      await repositorioUsuarios.atualizarStatusEmpresaPorAssinatura(assinaturaId, 'cancelado');
     }
 
     res.status(200).json({ recebido: true });

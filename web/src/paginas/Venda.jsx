@@ -95,7 +95,7 @@ const PRECO_ITENS = [
 const FAQS = [
   {
     pergunta: 'Como funciona a assinatura?',
-    resposta: 'São R$ 49 por mês, cobrados de forma recorrente pelo Mercado Pago. Você pode cancelar a qualquer momento direto na sua conta do Mercado Pago, sem multa nem fidelidade.',
+    resposta: 'São R$ 49 por mês, cobrados de forma recorrente pelo Stripe. Para cancelar, é só entrar em contato com o suporte — sem multa nem fidelidade.',
   },
   {
     pergunta: 'Serve para lente de contato e serviços?',
@@ -153,7 +153,7 @@ export default function Venda() {
                 <BotaoAssinar usuario={usuario} className="btn btn-lg" />
                 <Link className="btn-ghost" to="/como-funciona">Ver como funciona</Link>
               </div>
-              <span className="btn-note">R$ 49 por mês · Mercado Pago · cancele quando quiser</span>
+              <span className="btn-note">R$ 49 por mês · Stripe · cancele quando quiser</span>
             </div>
           </div>
         </section>
@@ -221,7 +221,7 @@ export default function Venda() {
               <BotaoAssinar usuario={usuario} className="btn btn-lg price-btn">
                 {usuario ? 'Ir para a calculadora' : 'Assinar agora'}
               </BotaoAssinar>
-              <span className="price-note">Pagamento seguro pelo Mercado Pago</span>
+              <span className="price-note">Pagamento seguro pelo Stripe</span>
             </div>
             <div className="price-side">
               <h2 className="sec-title">Menos de dois reais por dia</h2>

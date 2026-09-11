@@ -62,8 +62,8 @@ acesso vendido, ponto — ver comentário no topo de `dadosMock.js`.
 | `GET /api/v1/auth/eu` | Quem sou eu, com dados da conta |
 | `GET /api/v1/configuracoes/custos` | Custos padrão da conta (pré-preenche a calculadora) |
 | `PUT /api/v1/configuracoes/custos` | Atualiza os custos padrão |
-| `GET /api/v1/pagamentos/assinar` | Botão "Assinar" da página de venda → redireciona pro checkout do Mercado Pago |
-| `POST /api/v1/pagamentos/webhook` | Notificação do Mercado Pago → cria a conta e manda o e-mail de acesso |
+| `GET /api/v1/pagamentos/assinar` | Botão "Assinar" da página de venda → redireciona pro checkout do Stripe |
+| `POST /api/v1/pagamentos/webhook` | Notificação do Stripe → cria a conta e manda o e-mail de acesso |
 
 Em `AUTH_MODO=banco`, toda rota acima (exceto `/saude`) responde **503**
 enquanto o banco ainda está sendo preparado no boot — ver "Ordem do boot",
@@ -204,35 +204,39 @@ conta, sem login, linkada de lá; `/login` é o produto em si — ver
 [`web/src/App.jsx`](web/src/App.jsx).
 
 Fluxo: alguém clica em "Assinar" na página de venda → `GET
-/api/v1/pagamentos/assinar` devolve o link de checkout de um **plano** de
-assinatura recorrente ("preapproval_plan") no Mercado Pago e redireciona pro
-checkout hospedado deles (o plano é criado uma vez, na primeira chamada, e
-cacheado em memória — o preço é fixo, não faz sentido um plano por clique) →
-a pessoa paga e se identifica só ali, no checkout → volta pra
+/api/v1/pagamentos/assinar` cria uma **Checkout Session** de assinatura no
+Stripe (para o preço ativo do produto `STRIPE_PRODUTO_ID`) e redireciona pro
+checkout hospedado deles (diferente do Mercado Pago, não há "plano" pra
+cachear — cada clique gera uma sessão nova, o Stripe já lida com isso) → a
+pessoa paga e se identifica só ali, no checkout → volta pra
 `/login?assinatura=pendente` (banner explicando que o acesso chega por
-e-mail) → o Mercado Pago chama `POST /api/v1/pagamentos/webhook` quando a
-assinatura (agora uma "preapproval" ligada ao plano) é aprovada → o webhook
-cria a `Empresa` + `Usuario` (um só — sem subconta, ver acima) com senha
-aleatória e manda e-mail de acesso via Resend. Ver
-[`src/lib/mercadoPago.js`](src/lib/mercadoPago.js),
+e-mail) → o Stripe chama `POST /api/v1/pagamentos/webhook` quando a
+assinatura é criada/atualizada/cancelada → o webhook cria a `Empresa` +
+`Usuario` (um só — sem subconta, ver acima) com senha aleatória e manda
+e-mail de acesso via Resend. Ver [`src/lib/stripe.js`](src/lib/stripe.js),
 [`src/lib/email.js`](src/lib/email.js) e
 [`src/modules/pagamentos/pagamentos.rotas.js`](src/modules/pagamentos/pagamentos.rotas.js).
 
-**Corte de acesso por inadimplência**: quando o Mercado Pago avisa que a
-assinatura pausou (falha de cobrança) ou foi cancelada, o webhook marca a
-`Empresa` como `inadimplente`/`cancelado`. Esse status bloqueia login (na
-hora) e também qualquer requisição autenticada em andamento — a
-verificação roda a cada request (`src/middleware/autenticacao.js`), não só
-no login, então quem já estava logado perde o acesso na próxima chamada à
-API, sem esperar o token expirar (até 7 dias). Ver
-`erroAssinaturaInativa` em [`src/lib/erros.js`](src/lib/erros.js).
+**Corte de acesso por inadimplência**: quando o Stripe avisa que a
+assinatura ficou `past_due`/`unpaid` (falha de cobrança) ou foi `canceled`,
+o webhook marca a `Empresa` como `inadimplente`/`cancelado`. Esse status
+bloqueia login (na hora) e também qualquer requisição autenticada em
+andamento — a verificação roda a cada request
+(`src/middleware/autenticacao.js`), não só no login, então quem já estava
+logado perde o acesso na próxima chamada à API, sem esperar o token expirar
+(até 7 dias). Ver `erroAssinaturaInativa` em
+[`src/lib/erros.js`](src/lib/erros.js).
 
 Escolhas:
 
-- **Mercado Pago** (assinatura/"preapproval" recorrente) — suporta conta
-  PJ/CNPJ, e é onde a GMT Academy já tem conta. `MERCADOPAGO_ACCESS_TOKEN`
-  começando com `TEST-` usa o checkout de sandbox; `APP_USR-` é produção —
-  confundir os dois é o erro mais comum.
+- **Stripe** (Checkout + assinatura recorrente) — cadastro self-service com
+  aprovação rápida, decline rate menor que o Mercado Pago em cobrança
+  recorrente (Smart Retries reduz falha de cobrança futura) e já processa
+  BRL localmente. `STRIPE_ACCESS_TOKEN` começando com `sk_test_` usa o modo
+  de teste; `sk_live_` é produção — confundir os dois é o erro mais comum.
+  O preço cobrado vem do preço ativo cadastrado no produto
+  (`STRIPE_PRODUTO_ID`) direto no painel do Stripe, não de uma variável de
+  ambiente aqui.
 - **Resend** para o e-mail de acesso — chamada direta na API REST deles
   (sem SDK). `EMAIL_REMETENTE` é **específico deste produto**
   (`acesso@calculadora.gmtacademy.com.br`): como vão existir outros produtos sob a
@@ -240,26 +244,29 @@ Escolhas:
   endereço genérico compartilhado — e o domínio do remetente precisa estar
   verificado (SPF/DKIM) no Resend.
 - **Checkout por redirect**, não embutido — mais simples de manter e é o
-  Mercado Pago quem lida com a tela de pagamento.
+  Stripe quem lida com a tela de pagamento.
 
 Configurar (ver `.env.example` para os comentários completos de cada
-variável): `URL_BASE`, `MERCADOPAGO_ACCESS_TOKEN`,
-`MERCADOPAGO_WEBHOOK_SECRET`, `PRECO_ASSINATURA`, `RESEND_API_KEY`,
-`EMAIL_REMETENTE`. Ou as seis estão preenchidas, ou nenhuma — pela metade,
-`/pagamentos/assinar` responde erro em vez de meio-funcionar (ver
-`pagamentoConfigurado`/`emailConfigurado` em `src/config/env.js`).
+variável): `URL_BASE`, `STRIPE_ACCESS_TOKEN`, `STRIPE_PRODUTO_ID`,
+`STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `EMAIL_REMETENTE`. Ou as seis
+estão preenchidas, ou nenhuma — pela metade, `/pagamentos/assinar` responde
+erro em vez de meio-funcionar (ver `pagamentoConfigurado`/`emailConfigurado`
+em `src/config/env.js`).
 
-O `MERCADOPAGO_WEBHOOK_SECRET` só existe depois de cadastrar a URL do
-webhook (`<URL_BASE>/api/v1/pagamentos/webhook`) no painel do Mercado Pago
-(Suas integrações → a aplicação → Webhooks) — o segredo aparece na tela
-depois de salvar essa URL.
+O `STRIPE_WEBHOOK_SECRET` só existe depois de cadastrar o endpoint de
+webhook (`<URL_BASE>/api/v1/pagamentos/webhook`) no painel do Stripe
+(Desenvolvedores → Webhooks), ouvindo pelo menos os eventos
+`checkout.session.completed`, `customer.subscription.updated` e
+`customer.subscription.deleted` — o segredo aparece na tela depois de
+salvar esse endpoint.
 
 **Não testado contra a API de verdade nesta sessão de desenvolvimento**: o
-ambiente onde este código foi escrito não alcança `api.mercadopago.com` nem
+ambiente onde este código foi escrito não alcança `api.stripe.com` nem
 `api.resend.com` (mesma restrição de rede que impede testar o MySQL daqui —
 ver "Banco de dados"). O código segue a documentação oficial de cada API à
-risca (formato do `preapproval`, verificação HMAC do webhook em
-`x-signature`), mas a confirmação real só acontece depois do deploy.
+risca (Checkout Session em modo `subscription`, verificação de assinatura do
+webhook via `stripe.webhooks.constructEvent`), mas a confirmação real só
+acontece depois do deploy.
 
 ### Fase 4 — deploy na Hostinger
 
@@ -291,7 +298,7 @@ src/
     estado.js                  prontidão do banco, para o 503 explicado
     diagnostico.js             traduz erro de conexão em causa provável (host? senha? IPv6?)
     rede.js                    prefere IPv4 na resolução de nomes
-    mercadoPago.js             cria assinatura, consulta status, confere assinatura HMAC do webhook
+    stripe.js                  cria assinatura (Checkout Session), consulta status, confere assinatura do webhook
     email.js                   envia o e-mail de acesso via Resend
     erros.js, logger.js, versao.js
   middleware/
@@ -302,7 +309,7 @@ src/
   modules/
     auth/               login, renovar, eu
     configuracoes/       custos padrão (GET/PUT /configuracoes/custos)
-    pagamentos/           checkout do Mercado Pago + webhook que provisiona a conta
+    pagamentos/           checkout do Stripe + webhook que provisiona a conta
   routes/index.js      /api/v1
 
 web/src/

@@ -12,7 +12,7 @@ import { logger } from './logger.js';
 const RESEND_URL = 'https://api.resend.com/emails';
 
 /// `para`/`nomeEmpresa` podem carregar o que quer que o pagador tenha
-/// digitado no checkout do Mercado Pago — escapa antes de colar no HTML do
+/// digitado no checkout do Stripe — escapa antes de colar no HTML do
 /// e-mail, senão vira injeção de HTML (o e-mail vai por HTML puro, sem
 /// template engine nenhum escapando por baixo).
 function escaparHtml(texto) {

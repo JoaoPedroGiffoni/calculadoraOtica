@@ -19,16 +19,16 @@ async function buscarEmpresaMock(id) {
   return empresasMock.find((e) => e.id === id) ?? null;
 }
 
-async function buscarEmpresaPorAssinaturaMock(mercadoPagoAssinaturaId) {
-  return empresasMock.find((e) => e.mercadoPagoAssinaturaId === mercadoPagoAssinaturaId) ?? null;
+async function buscarEmpresaPorAssinaturaMock(assinaturaId) {
+  return empresasMock.find((e) => e.assinaturaId === assinaturaId) ?? null;
 }
 
-async function criarContaPagaMock({ empresaNome, email, senhaHash, mercadoPagoAssinaturaId }) {
+async function criarContaPagaMock({ empresaNome, email, senhaHash, assinaturaId }) {
   const empresa = {
     id: randomUUID(),
     nome: empresaNome,
     status: 'ativo',
-    mercadoPagoAssinaturaId,
+    assinaturaId,
   };
   const usuario = {
     id: randomUUID(),
@@ -43,8 +43,8 @@ async function criarContaPagaMock({ empresaNome, email, senhaHash, mercadoPagoAs
   return { empresa, usuario };
 }
 
-async function atualizarStatusEmpresaPorAssinaturaMock(mercadoPagoAssinaturaId, status) {
-  const empresa = await buscarEmpresaPorAssinaturaMock(mercadoPagoAssinaturaId);
+async function atualizarStatusEmpresaPorAssinaturaMock(assinaturaId, status) {
+  const empresa = await buscarEmpresaPorAssinaturaMock(assinaturaId);
   if (empresa) empresa.status = status;
   return empresa;
 }
@@ -73,18 +73,18 @@ async function buscarEmpresaBanco(id) {
   return prisma.empresa.findUnique({ where: { id } });
 }
 
-async function buscarEmpresaPorAssinaturaBanco(mercadoPagoAssinaturaId) {
+async function buscarEmpresaPorAssinaturaBanco(assinaturaId) {
   const { prisma } = await import('./prisma.js');
-  return prisma.empresa.findUnique({ where: { mercadoPagoAssinaturaId } });
+  return prisma.empresa.findUnique({ where: { assinaturaId } });
 }
 
-async function criarContaPagaBanco({ empresaNome, email, senhaHash, mercadoPagoAssinaturaId }) {
+async function criarContaPagaBanco({ empresaNome, email, senhaHash, assinaturaId }) {
   const { prisma } = await import('./prisma.js');
   const empresa = await prisma.empresa.create({
     data: {
       nome: empresaNome,
       status: 'ativo',
-      mercadoPagoAssinaturaId,
+      assinaturaId,
       usuarios: { create: { nome: empresaNome, email, senhaHash } },
     },
     include: { usuarios: true },
@@ -92,9 +92,9 @@ async function criarContaPagaBanco({ empresaNome, email, senhaHash, mercadoPagoA
   return { empresa, usuario: empresa.usuarios[0] };
 }
 
-async function atualizarStatusEmpresaPorAssinaturaBanco(mercadoPagoAssinaturaId, status) {
+async function atualizarStatusEmpresaPorAssinaturaBanco(assinaturaId, status) {
   const { prisma } = await import('./prisma.js');
-  return prisma.empresa.update({ where: { mercadoPagoAssinaturaId }, data: { status } }).catch(() => null);
+  return prisma.empresa.update({ where: { assinaturaId }, data: { status } }).catch(() => null);
 }
 
 async function atualizarSenhaBanco(usuarioId, senhaHash) {

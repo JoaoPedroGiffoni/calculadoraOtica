@@ -71,7 +71,10 @@ export function criarApp() {
   app.use('/api', cors(opcoesCors));
 
   app.use(compression());
-  app.use(express.json({ limit: '1mb' }));
+  // `verify` guarda o corpo cru em req.rawBody: o webhook do Stripe precisa
+  // dele intacto para conferir a assinatura HMAC (ver src/lib/stripe.js) —
+  // depois de reserializado pelo express.json(), a verificação não bate mais.
+  app.use(express.json({ limit: '1mb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
   if (!ehProducao) app.use(morgan('dev'));
