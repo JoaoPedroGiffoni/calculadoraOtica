@@ -11,6 +11,7 @@ import { Carregando } from './componentes/Ui.jsx';
 import Venda from './paginas/Venda.jsx';
 import Demo from './paginas/Demo.jsx';
 import Login from './paginas/Login.jsx';
+import EsqueciSenha from './paginas/EsqueciSenha.jsx';
 import Calculadora from './paginas/Calculadora.jsx';
 
 // Enquanto o token está sendo validado mostramos uma tela neutra, para não
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="/" element={<Venda />} />
             <Route path="/como-funciona" element={<Demo />} />
             <Route path="/login" element={<Conteudo />} />
+            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

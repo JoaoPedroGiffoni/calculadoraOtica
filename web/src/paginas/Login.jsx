@@ -103,7 +103,10 @@ export default function Login() {
             </div>
 
             <div className="campo-grupo">
-              <label className="rotulo" htmlFor="senha">Senha</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <label className="rotulo" htmlFor="senha">Senha</label>
+                <Link to="/esqueci-senha" style={{ fontSize: 13 }}>Esqueci minha senha</Link>
+              </div>
               <div className="controle">
                 <input
                   id="senha"

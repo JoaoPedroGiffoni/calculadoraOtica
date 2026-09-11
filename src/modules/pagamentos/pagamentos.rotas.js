@@ -3,26 +3,17 @@
 // venda (ninguém está logado ainda), e /webhook é chamado pelo próprio
 // Mercado Pago (autenticado pela assinatura HMAC, não por JWT).
 import { Router } from 'express';
-import { randomInt } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { env, pagamentoConfigurado } from '../../config/env.js';
 import { criarAssinatura, buscarAssinatura, verificarAssinaturaWebhook } from '../../lib/mercadoPago.js';
 import { repositorioUsuarios } from '../../lib/repositorioUsuarios.js';
-import { enviarEmailAcesso } from '../../lib/email.js';
+import { enviarEmailAcesso, enviarAlertaFalhaEmail } from '../../lib/email.js';
+import { gerarSenha } from '../../lib/senha.js';
 import { logger } from '../../lib/logger.js';
 import { rota } from '../../middleware/erro.js';
 import { erroRequisicao } from '../../lib/erros.js';
 
 export const rotasPagamentos = Router();
-
-/// Gera uma senha inicial forte — quem assina recebe ela por e-mail e pode
-/// seguir usando (ainda não há tela de "trocar senha"). `crypto.randomInt`,
-/// não `Math.random()`: é a senha real de uma conta paga, precisa vir de um
-/// gerador criptograficamente seguro.
-function gerarSenha() {
-  const alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  return Array.from({ length: 16 }, () => alfabeto[randomInt(alfabeto.length)]).join('');
-}
 
 /// Cria a assinatura no Mercado Pago e redireciona para o checkout
 /// hospedado. GET (não POST) de propósito: é literalmente um link, pra
@@ -99,8 +90,11 @@ rotasPagamentos.post(
       } catch (erro) {
         // A conta já existe e já é utilizável — a pessoa só não recebeu o
         // e-mail. Não derruba o webhook por isso (o Mercado Pago reenviaria
-        // e tentaríamos criar a conta de novo, sem necessidade).
+        // e tentaríamos criar a conta de novo, sem necessidade). Avisa o
+        // dono do produto (se EMAIL_ALERTA estiver configurado) e conta com
+        // a pessoa usar "esqueci minha senha" em /login — ver auth.rotas.js.
         logger.error(`Conta ${usuario.email} criada, mas falhou o envio do e-mail de acesso.`, erro?.message);
+        await enviarAlertaFalhaEmail({ emailCliente: usuario.email, nomeEmpresa: empresa.nome, motivo: erro?.message ?? 'desconhecido' });
       }
     } else if (assinatura.status === 'paused') {
       await repositorioUsuarios.atualizarStatusEmpresaPorAssinatura(dataId, 'inadimplente');

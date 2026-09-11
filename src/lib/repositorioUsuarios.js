@@ -49,6 +49,12 @@ async function atualizarStatusEmpresaPorAssinaturaMock(mercadoPagoAssinaturaId, 
   return empresa;
 }
 
+async function atualizarSenhaMock(usuarioId, senhaHash) {
+  const usuario = usuariosMock.find((u) => u.id === usuarioId);
+  if (usuario) usuario.senhaHash = senhaHash;
+  return usuario;
+}
+
 // `prisma.js` só é importado aqui dentro (não no topo do arquivo): em modo
 // mock, `src/lib/prisma.js` nunca chega a carregar, então DATABASE_URL nem
 // precisa existir — ver comentário no topo daquele arquivo.
@@ -91,6 +97,11 @@ async function atualizarStatusEmpresaPorAssinaturaBanco(mercadoPagoAssinaturaId,
   return prisma.empresa.update({ where: { mercadoPagoAssinaturaId }, data: { status } }).catch(() => null);
 }
 
+async function atualizarSenhaBanco(usuarioId, senhaHash) {
+  const { prisma } = await import('./prisma.js');
+  return prisma.usuario.update({ where: { id: usuarioId }, data: { senhaHash } });
+}
+
 export const repositorioUsuarios =
   env.AUTH_MODO === 'banco'
     ? {
@@ -100,6 +111,7 @@ export const repositorioUsuarios =
         buscarEmpresaPorAssinatura: buscarEmpresaPorAssinaturaBanco,
         criarContaPaga: criarContaPagaBanco,
         atualizarStatusEmpresaPorAssinatura: atualizarStatusEmpresaPorAssinaturaBanco,
+        atualizarSenha: atualizarSenhaBanco,
       }
     : {
         buscarPorEmail: buscarPorEmailMock,
@@ -108,4 +120,5 @@ export const repositorioUsuarios =
         buscarEmpresaPorAssinatura: buscarEmpresaPorAssinaturaMock,
         criarContaPaga: criarContaPagaMock,
         atualizarStatusEmpresaPorAssinatura: atualizarStatusEmpresaPorAssinaturaMock,
+        atualizarSenha: atualizarSenhaMock,
       };

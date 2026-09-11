@@ -66,6 +66,10 @@ const esquema = z.object({
   // genérico compartilhado.
   RESEND_API_KEY: z.string().optional(),
   EMAIL_REMETENTE: z.string().optional(),
+  // Para onde avisar quando o e-mail de acesso de uma conta paga falha ao
+  // enviar (ver pagamentos.rotas.js) — sem isso, a única forma de notar é
+  // lendo o log do PM2. Opcional: se vazio, o aviso só fica no log mesmo.
+  EMAIL_ALERTA: z.string().optional(),
 });
 
 const resultado = esquema.safeParse(process.env);
